@@ -125,7 +125,7 @@ try {
     groupLink = await admin.$eval('.group-share a[href^="sms:"]', (a) => decodeURIComponent(a.getAttribute('href').split('body=')[1]).match(/https?:\/\/\S+/)[0]);
   });
 
-  const plan = [['Ada', 'Einkauf'], ['Bea', 'Einkauf'], ['Cem', 'IT'], ['Dan', 'IT'], ['Eva', 'Pflege']];
+  const plan = [['Adelheid', 'Einkauf'], ['Bea', 'Einkauf'], ['Cem', 'IT'], ['Dan', 'IT'], ['Eva', 'Pflege']];
   await step('Fünf tragen sich ein und wählen ihr Team; Einkauf ist danach voll', async () => {
     for (const [name, team] of plan) {
       const p = await newPage();
@@ -147,7 +147,7 @@ try {
       await pickTeam(p, team);
       people[name] = p;
     }
-    if (await people.Ada.evaluate(() => document.body.textContent.includes('Bea'))) problems.push('Teamwahl verrät vor der Auslosung Namen');
+    if (await people.Adelheid.evaluate(() => document.body.textContent.includes('Bea'))) problems.push('Teamwahl verrät vor der Auslosung Namen');
     await waitText(people.Eva, '1 dabei');
   });
 
@@ -165,16 +165,16 @@ try {
   });
 
   let target = '';
-  await step('Ada sieht das beschenkte Team mit Mitgliedern und ihr eigenes Team', async () => {
+  await step('Adelheid sieht das beschenkte Team mit Mitgliedern und ihr eigenes Team', async () => {
     for (const p of Object.values(people)) await p.reload();
-    const ada = people.Ada;
+    const ada = people.Adelheid;
     await waitText(ada, 'Päckchen auspacken');
     await clickText(ada, 'Päckchen auspacken');
     await waitText(ada, 'Euer Team beschenkt');
     target = await ada.$eval('.reveal-name', (e) => e.textContent);
     if (!['IT', 'Pflege'].includes(target)) problems.push(`Einkauf beschenkt „${target}“`);
     await waitText(ada, target === 'IT' ? 'Mitglieder: Cem, Dan' : 'Mitglieder: Eva');
-    await waitText(ada, 'Ihr seid Team Einkauf: Ada, Bea.');
+    await waitText(ada, 'Ihr seid Team Einkauf: Adelheid, Bea.');
     await waitText(ada, 'Das Team hat noch keinen Wunschzettel geschrieben.');
     await shot(ada, 'team-zuordnung');
     await new Promise((r) => setTimeout(r, 1200)); // Einblend-Animation abwarten, sonst misst axe halbtransparente Schrift
@@ -182,8 +182,8 @@ try {
     await shotCard(ada, 'Euer Team beschenkt', 'zuordnung');
   });
 
-  await step('Team-Wunschzettel: Ada speichert, Bea mit altem Stand bekommt Konflikt statt Überschreiben', async () => {
-    const [ada, bea] = [people.Ada, people.Bea];
+  await step('Team-Wunschzettel: Adelheid speichert, Bea mit altem Stand bekommt Konflikt statt Überschreiben', async () => {
+    const [ada, bea] = [people.Adelheid, people.Bea];
     await waitText(bea, 'Euer Team-Wunschzettel');
     const setWish = (p, text) => p.$eval('.card .wish-editor textarea', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, text);
     if (await ada.$('.wish-editor .health-consent')) problems.push('Team-Wunschzettel fragt Gesundheitsangaben ab');
@@ -196,7 +196,7 @@ try {
     await shot(bea, 'konflikt');
     await axe(bea, 'Team-Wunschzettel mit Konflikt');
     await shotCard(bea, 'Euer Team-Wunschzettel', 'wunschzettel');
-    await waitText(bea, 'zuletzt geändert von Ada', 15000); // lädt nach dem Konflikt selbst neu
+    await waitText(bea, 'zuletzt geändert von Adelheid', 15000); // lädt nach dem Konflikt selbst neu
     const text = await bea.$eval('.card .wish-editor textarea', (el) => el.value);
     if (text !== 'Ein großes Brettspiel für die Mittagspause') problems.push(`Bea sieht nach dem Neuladen „${text}“`);
   });
@@ -213,7 +213,7 @@ try {
     if (!giver) throw new Error('Niemand beschenkt Einkauf');
     await giver.reload(); // Seite war vor dem Speichern geladen
     await waitText(giver, 'Ein großes Brettspiel für die Mittagspause');
-    await waitText(giver, 'zuletzt geändert von Ada');
+    await waitText(giver, 'zuletzt geändert von Adelheid');
     await giver.type('textarea[aria-label="Nachricht an das beschenkte Team"]', 'Lieber Tee oder Kaffee?');
     await clickText(giver, 'Anonym fragen');
     await waitText(giver, 'Gesendet.');
@@ -227,7 +227,11 @@ try {
   await step('Datenbank: keine Team- oder Personennamen im Klartext', async () => {
     if (!srv.dbPath || !existsSync(srv.dbPath)) return console.log('     (externe Installation: übersprungen)');
     const raw = Buffer.concat([readFileSync(srv.dbPath), existsSync(`${srv.dbPath}-wal`) ? readFileSync(`${srv.dbPath}-wal`) : Buffer.alloc(0)]);
-    for (const s of ['Einkauf', 'Pflege', 'Brettspiel', 'Ada', 'Kaffee']) if (raw.includes(Buffer.from(s))) problems.push(`Klartext in der Datenbank: ${s}`);
+    for (const s of ['Einkauf', 'Pflege', 'Brettspiel', 'Adelheid', 'Kaffee']) {
+      const at = raw.indexOf(Buffer.from(s));
+      // Umgebung mit ausgeben: So lässt sich ein echter Klartext von einem Zufallstreffer in Base64-Chiffretext unterscheiden.
+      if (at >= 0) problems.push(`Klartext in der Datenbank: ${s} – Umgebung: ${raw.subarray(Math.max(0, at - 30), at + s.length + 30).toString('latin1').replace(/[^\x20-\x7E]/g, '·')}`);
+    }
   });
 } catch (e) {
   problems.push(`Abbruch: ${e.stack || e.message}`);
