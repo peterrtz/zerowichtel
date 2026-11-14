@@ -1,5 +1,11 @@
 # Änderungen
 
+## Nach 2.5.3 (nur Dokumentation, kein neues Paket)
+
+- README und Anleitungen nennen die Release-Seite als Bezugsquelle des Installationspakets.
+- README: neuer Abschnitt „Voraussetzungen und Grenzen“ (abgedeckter Serveraufbau, feste Namen, Zeitzone, Sprachen, Teststand).
+- Tests: Klartext-Prüfung im Team-Durchlauf ohne Zufallstreffer.
+
 ## 2.5.3 – 2026-11-14
 
 Nur Dokumentation und Hinweistexte des Installers; Programmcode und Schema (7) sind unverändert gegenüber 2.5.2.

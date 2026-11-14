@@ -70,10 +70,32 @@ admin_bereich:                       # standardmäßig aus
 
 ## Installation
 
+Das Installationspaket `zerowichtel-<version>.zip` steht auf der [Release-Seite](https://github.com/peterrtz/zerowichtel/releases) samt SHA-256-Prüfsumme. Wer aus dem Quelltext baut, erzeugt es mit `npm ci && npm run release` (liegt dann in `dist/`; die Prüfsumme eines selbst gebauten Pakets weicht von der des veröffentlichten ab).
+
 | Server | Anleitung |
 | --- | --- |
 | Caddy läuft in Docker Compose | [docs/INSTALL-DOCKER-CADDY.md](docs/INSTALL-DOCKER-CADDY.md) – eigener Container, Caddy als Reverse Proxy, Update von 1.x inklusive |
 | Node.js direkt auf dem Server (systemd, beliebiger Reverse Proxy) | [docs/INSTALL-OHNE-DOCKER.md](docs/INSTALL-OHNE-DOCKER.md) |
+
+### Voraussetzungen und Grenzen
+
+```yaml
+laufzeit: Node.js >= 24.7 oder Docker mit Compose-Plugin   # keine npm-Pakete zur Laufzeit
+https: zwingend, über einen Reverse Proxy davor (Caddy oder nginx)
+installationsskript:
+  deckt_ab: Caddy läuft bereits in Docker Compose
+  sonst: Weg ohne Docker (systemd) oder selbst anpassen
+  feste_namen: {container: zerowichtel, netz: zerowichtel-proxy}   # eine Installation je Server
+zeitzone: Europe/Berlin                 # fest im Dockerfile und in der systemd-Unit; dort bei Bedarf ändern
+sprache:
+  oberflaeche: [de, en]
+  anleitungen_und_skriptmeldungen: de
+  rechtstexte: de                       # Entwurf nach deutschem Recht; vor öffentlichem Betrieb selbst prüfen (lassen)
+betreiberangaben: leer nach der Installation – in config.json eintragen (operator, hoster, privacy)
+getestet:
+  automatisch: Docker-Weg (Erstinstallation, Update, Rückfall), API, Oberfläche
+  nicht_automatisch: systemd-Dienst des Wegs ohne Docker (Unit mit systemd-analyze geprüft, Startbefehl von Hand getestet)
+```
 
 Kommandozeile (im Container mit `sudo docker exec -it zerowichtel zw …`):
 

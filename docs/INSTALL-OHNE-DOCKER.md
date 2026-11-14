@@ -24,6 +24,8 @@ node -e 'console.log(process.version, typeof require("node:crypto").argon2Sync)'
 
 ## 2. Code, Benutzer, Konfiguration
 
+Das Paket `zerowichtel-2.5.3.zip` von der [Release-Seite](https://github.com/peterrtz/zerowichtel/releases) laden und die dort genannte SHA-256-Prüfsumme vergleichen.
+
 ```sh
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin zerowichtel
 sudo mkdir -p /opt/zerowichtel /etc/zerowichtel

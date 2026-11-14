@@ -84,6 +84,8 @@ dig +short wichteln.example.org
 
 ## 2. Paket hochladen und Skript starten
 
+Das Paket `zerowichtel-2.5.3.zip` von der [Release-Seite](https://github.com/peterrtz/zerowichtel/releases) laden und die dort genannte SHA-256-Prüfsumme vergleichen (`sha256sum zerowichtel-2.5.3.zip`).
+
 Vom eigenen Rechner:
 
 ```sh
