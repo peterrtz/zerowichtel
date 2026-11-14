@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
+  <meta name="tdm-reservation" content="1">
+  <meta name="description" content="ZeroWichtel – Wichteln und Schrottwichteln ohne Konto, Ende-zu-Ende-verschlüsselt.">
+  <meta name="theme-color" content="#1f3d2b" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111612" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <title>ZeroWichtel</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#app" id="skip-link" data-i18n>Zum Inhalt springen</a>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="ZeroWichtel – Startseite" data-i18n-label>
+      <img src="icons/icon.svg" alt="" width="28" height="28">
+      <span>Zero<b>Wichtel</b></span>
+    </a>
+    <div class="topbar-right">
+      <button type="button" class="lock" id="crypto-info" aria-haspopup="dialog" title="Wie die Verschlüsselung funktioniert" data-i18n-title><span class="lock-text" data-i18n>verschlüsselt</span></button>
+      <button type="button" class="theme-toggle music-toggle" id="music-toggle" aria-label="Hintergrundmusik" aria-pressed="false" title="Hintergrundmusik einschalten" data-i18n-label>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M9 17.5V6.2a1 1 0 0 1 .76-.97l9-2.25A1 1 0 0 1 20 4v11.5a3 3 0 1 1-2-2.83V7.28l-7 1.75v8.47a3 3 0 1 1-2-2.83z"/><path class="music-off" d="M3.5 3.5l17 17" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Design umschalten">
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M20.4 14.6A8.5 8.5 0 0 1 9.4 3.6a.75.75 0 0 0-1-.9A10 10 0 1 0 21.3 15.6a.75.75 0 0 0-.9-1z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g></svg>
+      </button>
+    </div>
+  </header>
+  <div id="announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+  <main id="app" tabindex="-1">
+    <noscript><p class="notice notice-warn">ZeroWichtel verschlüsselt alles in deinem Browser und braucht dafür JavaScript. / ZeroWichtel encrypts everything in your browser and needs JavaScript for that.</p></noscript>
+  </main>
+  <footer class="footer">
+    <a href="#hilfe" data-i18n>Hilfe</a>
+    <a href="#datenschutz" data-i18n>Datenschutz</a>
+    <a href="#impressum" data-i18n>Impressum</a>
+    <a href="#barrierefreiheit" data-i18n>Barrierefreiheit</a>
+    <a href="#lizenzen" data-i18n>Lizenzen</a>
+    <button type="button" class="linklike" id="crypto-info-footer" aria-haspopup="dialog" data-i18n>Verschlüsselung</button>
+    <button type="button" class="linklike" id="theme-reset" hidden data-i18n>Design wie Gerät</button>
+    <button type="button" class="linklike" id="lang-toggle" lang="en">English</button>
+    <span data-i18n>Open Source · EUPL-1.2 · Musik: starostin (Pixabay)</span>
+  </footer>
+</body>
+</html>

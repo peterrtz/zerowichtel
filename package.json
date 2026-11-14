@@ -1,0 +1,33 @@
+{
+  "name": "zerowichtel",
+  "version": "2.5.3",
+  "private": true,
+  "type": "module",
+  "license": "EUPL-1.2",
+  "engines": {
+    "node": ">=24.7"
+  },
+  "scripts": {
+    "start": "node server/main.mjs serve",
+    "dev": "ZW_DEV=1 ZW_CONFIG=dev/config.dev.json node server/main.mjs serve --port 8080",
+    "test": "node --test tests/js/*.test.mjs",
+    "test:api": "node tests/api/run.mjs && node tests/api/fuzz.mjs 3000",
+    "test:e2e": "node tests/e2e/flow.mjs && node tests/e2e/draw-flow.mjs",
+    "test:ui": "node tests/ui/smoke.mjs && node tests/ui/hostile.mjs",
+    "test:browser": "node tests/browser/walkthrough.mjs && node tests/browser/walkthrough-m2.mjs && node tests/browser/walkthrough-m3.mjs && node tests/browser/walkthrough-m4.mjs && node tests/browser/walkthrough-admin.mjs && node tests/browser/walkthrough-remind.mjs && node tests/browser/walkthrough-23.mjs && node tests/browser/walkthrough-24.mjs && node tests/browser/walkthrough-25.mjs && node tests/browser/a11y.mjs",
+    "test:all": "npm run lint && npm test && npm run test:api && npm run test:e2e && npm run test:ui",
+    "lint": "eslint .",
+    "release": "node bin/release.mjs",
+    "verify": "node bin/verify-release.mjs"
+  },
+  "devDependencies": {
+    "axe-core": "^4.10.2",
+    "eslint": "^10.14.0",
+    "globals": "^15.15.0",
+    "jsdom": "^25.0.1",
+    "puppeteer-core": "^25.17.0"
+  },
+  "overrides": {
+    "minimatch": "^11.0.6"
+  }
+}

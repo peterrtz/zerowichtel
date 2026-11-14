@@ -1,0 +1,47 @@
+# ZeroWichtel als systemd-Dienst (ohne Docker). Anleitung: docs/INSTALL-OHNE-DOCKER.md
+#   sudo cp deploy/zerowichtel.service /etc/systemd/system/ && sudo systemctl enable --now zerowichtel
+[Unit]
+Description=ZeroWichtel (Node.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zerowichtel
+Group=zerowichtel
+Environment=NODE_ENV=production TZ=Europe/Berlin ZW_CONFIG=/etc/zerowichtel/config.json ZW_DB_PATH=/var/lib/zerowichtel/zerowichtel.sqlite
+ExecStart=/usr/bin/node /opt/zerowichtel/server/main.mjs serve --host 127.0.0.1 --port 8080
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+# Daten nur unter /var/lib/zerowichtel (wird von systemd angelegt), alles andere schreibgeschützt
+StateDirectory=zerowichtel
+StateDirectoryMode=0700
+UMask=0077
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

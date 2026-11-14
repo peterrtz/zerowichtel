@@ -1,0 +1,11 @@
+// Nur lokale Entwicklung (npm run dev setzt ZW_DEV=1). Der Platzhalter-Schlüssel wird ohne ZW_DEV abgelehnt.
+{
+  "db_path": "data/dev.sqlite",
+  "base_url": "http://127.0.0.1:8080",
+  "server_key": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+  "require_organizer_code": true,
+  "lazy_cleanup": true,
+  "mail": { "transport": "log", "from_email": "noreply@localhost", "log_path": "data/mail.log" },
+  "admin": { "enabled": true },
+  "rate_limits": { "read": [100000, 3600], "write": [100000, 3600], "claim": [1000, 3600], "create_round": [1000, 3600], "recover": [1000, 3600] }
+}

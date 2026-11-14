@@ -1,0 +1,75 @@
+// ZeroWichtel – Konfiguration (JSON). Zeilen, die mit // beginnen, sind Kommentare.
+// Kopieren nach config.json und anpassen. Niemals config.json ins Repository einchecken.
+// Änderungen übernimmt der laufende Server innerhalb einer Minute (sofort: docker kill -s HUP zerowichtel).
+{
+  // Pfad zur SQLite-Datei (relativ zu dieser Datei). Im Docker-Container fest vorgegeben (ZW_DB_PATH).
+  "db_path": "data/zerowichtel.sqlite",
+
+  // Öffentliche Basis-URL ohne abschließenden Schrägstrich. Mit https:// leitet der Server
+  // alle Anfragen ohne „X-Forwarded-Proto: https“ (vom Reverse Proxy) auf HTTPS um.
+  "base_url": "https://wichteln.example.org",
+
+  // Serverschlüssel (32 Byte, Base64). Erzeugen mit:
+  //   head -c 32 /dev/urandom | base64
+  // Verschlüsselt E-Mail-Adressen und das TOTP-Geheimnis, salzt IP-Hashes fürs Rate-Limit.
+  // Die Datenbank der PHP-Version 1.x bleibt mit demselben Schlüssel lesbar.
+  "server_key": "HIER-EINEN-ZUFALLSWERT-EINTRAGEN",
+
+  // Runden dürfen nur mit Organisator-Einladungscode angelegt werden.
+  "require_organizer_code": true,
+
+  // Maximale Teilnehmende je Runde (3–50).
+  "max_participants": 50,
+
+  // Aufräumen und Erinnerungen laufen im Server jede Minute (höchstens alle 10 Minuten wirksam).
+  // true = zusätzlich bei API-Aufrufen prüfen (nur nötig, wenn der Server zeitweise schläft).
+  "lazy_cleanup": true,
+
+  // Rate-Limits: Aktion → [max. Anfragen, Zeitfenster in Sekunden]
+  "rate_limits": {
+    "create_round": [10, 3600],
+    "create_open": [2, 86400],
+    "claim": [30, 3600],
+    "recover": [10, 3600],
+    "write": [300, 3600],
+    "read": [1200, 3600],
+    "mail": [30, 3600],
+    "mail_round": [120, 86400],
+    "mail_admin": [5, 86400],
+    "admin": [30, 3600]
+  },
+
+  // E-Mail-Modus (optional). transport: "smtp" | "brevo" | "log" (nur Entwicklung) | null (aus).
+  // Ohne Versand gibt es keinen E-Mail-Modus – Einladen per Teilen-Menü geht immer.
+  // SMTP: secure "tls" = STARTTLS (Port 587), "ssl" = implizites TLS (Port 465).
+  //   mailbox.org: "smtp": { "host": "smtp.mailbox.org", "port": 465, "user": "…", "pass": "…", "secure": "ssl" }
+  // Brevo: Im Konto abschalten: E-Mail-Vorschauen speichern, Klick- und Öffnungs-Tracking; Logs minimal halten.
+  "mail": {
+    "transport": null,
+    "from_email": "noreply@wichteln.example.org",
+    "from_name": "ZeroWichtel",
+    "smtp": { "host": "", "port": 587, "user": "", "pass": "", "secure": "tls" },
+    "brevo_api_key": ""
+  },
+
+  // Angaben für Impressum und Datenschutzerklärung (werden in der App angezeigt).
+  // Solange leer, zeigen Impressum und Datenschutzerklärung einen Hinweis statt der Angaben.
+  "operator": { "name": "", "street": "", "city": "", "email": "", "phone": "" },
+  // Hosting-Anbieter (Auftragsverarbeiter), z. B. "Musterhost GmbH, Musterstadt"
+  "hoster": "",
+
+  // Nur für die Datenschutzerklärung:
+  //   mail_provider: E-Mail-Anbieter mit Firmierung und Anschrift, z. B. "Heinlein Hosting GmbH (mailbox.org), Berlin"
+  //   no_access_logs: true, wenn weder ZeroWichtel noch der Reverse Proxy Zugriffsprotokolle mit IP-Adressen schreibt
+  //   backup_days: nach wie vielen Tagen Sicherungen von data/ spätestens überschrieben werden (0 = keine eigenen Sicherungen).
+  //                Steht so in der Datenschutzerklärung. Empfehlung: höchstens 14.
+  "privacy": { "mail_provider": "", "no_access_logs": false, "backup_days": 0 },
+
+  // Admin-Bereich für Organisator-Codes (Browser, Passwort + Authenticator-App).
+  // Einrichten auf der Konsole: zw admin setup – danach hier "enabled": true.
+  "admin": { "enabled": false, "session_minutes": 30 },
+
+  // Hinter einem Reverse Proxy: Header mit der echten Client-IP (sonst null).
+  // Nur setzen, wenn der Proxy den Header garantiert überschreibt (Caddy tut das).
+  "client_ip_header": null
+}
