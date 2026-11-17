@@ -4,6 +4,7 @@ import * as C from './crypto.js';
 import { api, linkBase } from './api.js';
 import { buildLink, buildFragment } from './links.js';
 import { draw as runDraw, verify as verifyDraw, drawTeams, isSingleCycle } from './draw.js';
+import { normalizeAnalog, analogPrecheck, mergeExclusions } from './analog.js';
 import { normalizeRules, defaultRules } from './rules.js';
 import { cleanUrl, cleanTextUrls } from './cleanurl.js';
 import { t, lang as uiLang } from './i18n.js';
@@ -143,6 +144,8 @@ export async function loadAdmin(ctx) {
   }
   const teams = r.teamsCt ? (await C.decryptJson(ctx.kRound, r.teamsCt, AAD.teams(r.id))).teams : null;
   const join = r.join ? { ...r.join, token: (await C.decryptJson(ctx.kAdmin, r.join.ct, AAD.join(r.id))).t } : null;
+  // Analoge Mitwichtelnde: nur Einträge zu Personen, die es (noch) gibt
+  admin.analog = normalizeAnalog(admin.analog, participants.map((p) => p.id));
   return { round: r, meta, admin, participants, join, teams, maxParticipants: data.maxParticipants, emailAvailable: !!data.emailAvailable };
 }
 
@@ -502,7 +505,12 @@ export async function performDraw(ctx, adminData, names) {
   const ids = keys.map((k) => k.id);
   const pub = Object.fromEntries(keys.map((k) => [k.id, k.pubkey]));
   const groups = (adminData.groups || []).map((g) => ({ ...g, members: g.members.filter((m) => pub[m]) }));
-  const exclusions = (adminData.exclusions || []).filter(([a, b]) => pub[a] && pub[b]);
+  // Analoge Mitwichtelnde: Grenze und Helfer-Regeln prüfen; Paare analog ↔ Helfer:in immer ausschließen,
+  // auch wenn sie (etwa nach Bearbeitung mit einer älteren App-Version) in der Ausschlussliste fehlen.
+  const analog = adminData.analog || [];
+  const pre = analogPrecheck(analog, ids, names);
+  if (!pre.ok) throw new Error(pre.reason);
+  const exclusions = mergeExclusions(adminData.exclusions, analog).filter(([a, b]) => pub[a] && pub[b]);
   const result = runDraw(ids, groups, exclusions, { names });
   if (!verifyDraw(ids, result.pairs, groups, exclusions)) throw new Error(t('Interner Fehler bei der Ziehung.'));
 
@@ -539,6 +547,7 @@ export async function performDraw(ctx, adminData, names) {
  * @param {{teams:{id,name}[], participants:{id,name,team}[]}} data  aus loadAdmin
  */
 export async function performTeamDraw(ctx, data) {
+  if ((data.admin?.analog || []).length) throw new Error(t('Analoge Mitwichtelnde gibt es nur beim Wichteln Person für Person, nicht beim Team-Wichteln.'));
   const keys = await loadKeys(ctx);
   const pub = Object.fromEntries(keys.map((k) => [k.id, k.pubkey]));
   const people = data.participants.filter((p) => pub[p.id]);

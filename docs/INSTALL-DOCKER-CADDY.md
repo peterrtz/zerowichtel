@@ -36,7 +36,7 @@ Ab 2.0 läuft ZeroWichtel mit Node.js statt PHP. Für dich ändert sich fast nic
 
 ```yaml
 update_1x_auf_2_0:
-  befehl: sudo bash install-docker-caddy.sh zerowichtel-2.5.3.zip
+  befehl: sudo bash install-docker-caddy.sh zerowichtel-2.6.0.zip
   konfiguration: config/config.php wird automatisch nach config/config.json übernommen (Serverschlüssel, Mail, Betreiber, Admin)
   alte_datei: config/config.php.1x               # bleibt nur für einen Rückfall liegen
   datenbank: unverändert weiterverwendet          # Runden, Adressen, Admin-Zugang, Codes, Notfallcodes
@@ -84,21 +84,21 @@ dig +short wichteln.example.org
 
 ## 2. Paket hochladen und Skript starten
 
-Das Paket `zerowichtel-2.5.3.zip` von der [Release-Seite](https://github.com/peterrtz/zerowichtel/releases) laden und die dort genannte SHA-256-Prüfsumme vergleichen (`sha256sum zerowichtel-2.5.3.zip`).
+Das Paket `zerowichtel-2.6.0.zip` von der [Release-Seite](https://github.com/peterrtz/zerowichtel/releases) laden und die dort genannte SHA-256-Prüfsumme vergleichen (`sha256sum zerowichtel-2.6.0.zip`).
 
 Vom eigenen Rechner:
 
 ```sh
-scp -i ~/.ssh/<dein-key> zerowichtel-2.5.3.zip <benutzer>@<server>:~
+scp -i ~/.ssh/<dein-key> zerowichtel-2.6.0.zip <benutzer>@<server>:~
 ```
 
 Auf dem Server:
 
 ```sh
 cd ~
-unzip -o -j zerowichtel-2.5.3.zip deploy/install-docker-caddy.sh -d .
-sudo DOMAIN=wichteln.example.org bash install-docker-caddy.sh zerowichtel-2.5.3.zip   # erste Installation
-sudo bash install-docker-caddy.sh zerowichtel-2.5.3.zip                               # Update: Domain kommt aus config.json
+unzip -o -j zerowichtel-2.6.0.zip deploy/install-docker-caddy.sh -d .
+sudo DOMAIN=wichteln.example.org bash install-docker-caddy.sh zerowichtel-2.6.0.zip   # erste Installation
+sudo bash install-docker-caddy.sh zerowichtel-2.6.0.zip                               # Update: Domain kommt aus config.json
 ```
 
 Bei der ersten Installation muss `DOMAIN=` angegeben werden (es gibt keinen Standardwert). Bei einem Update liest das Skript die Domain aus `base_url` der vorhandenen `config/config.json`.
@@ -212,7 +212,7 @@ Passwort und Notfallcodes gehören in den Passwortmanager. Wenn Handy und Notfal
 Neues ZIP hochladen und dasselbe Skript erneut ausführen. `config/` und `data/` bleiben erhalten; das Basis-Image wird dabei frisch gezogen, so kommen auch Sicherheitsupdates von Node.js und Debian in den Container. Einmal im Monat neu bauen lohnt sich auch ohne neue ZeroWichtel-Version:
 
 ```sh
-sudo bash install-docker-caddy.sh zerowichtel-2.5.3.zip
+sudo bash install-docker-caddy.sh zerowichtel-2.6.0.zip
 ```
 
 ## Domain wechseln

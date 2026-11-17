@@ -17,6 +17,7 @@ const SHELL = [
   'js/lib/dates.js',
   'js/lib/dom.js',
   'js/lib/draw.js',
+  'js/lib/analog.js',
   'js/lib/editor.js',
   'js/lib/en.js',
   'js/lib/i18n.js',

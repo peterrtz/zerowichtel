@@ -39,7 +39,8 @@ export async function renderInvite(root, ictx, { onClaimed }) {
   const accept = actionButton(t('Einladung annehmen'), async () => {
     const { pctx, recoveryCode } = await M.claimInvite(ictx);
     const fragment = M.personFragment(pctx);
-    saveLink({ kind: 'p', roundId: pctx.roundId, pid: pctx.pid, fragment, title: meta.title, eventDate: round.eventDate, recoveryCode, confirmed: false });
+    // who: Name der Person – unterscheidet zwei Zugänge derselben Runde auf einem Gerät (z. B. Helfer:in für jemanden ohne Smartphone)
+    saveLink({ kind: 'p', roundId: pctx.roundId, pid: pctx.pid, fragment, title: meta.title, who: name, eventDate: round.eventDate, recoveryCode, confirmed: false });
     sessionStorage.setItem('zw.justClaimed', pctx.pid);
     // Einladung aus dem Verlauf ersetzen: Zurück-Taste führt nicht zur eingelösten Einladung.
     history.replaceState(null, '', fragment);

@@ -7,7 +7,7 @@ import { markdownEditor } from '../lib/editor.js';
 import { t, tn } from '../lib/i18n.js';
 import { page, card, chip, mount, setTitle, loading, notice, roundHeader, factList, md, calendarButton, qrSvg, printInviteCards, timeline } from './common.js';
 import { linkBase } from '../lib/api.js';
-import { adminDrawSection } from './admin-draw.js';
+import { adminDrawSection, helperInviteText, helperNameOf } from './admin-draw.js';
 import { schrottCard } from './game.js';
 import { rulesEditor } from './rules-editor.js';
 
@@ -171,15 +171,23 @@ export async function renderAdmin(root, ctx) {
   const drawn = round.status === 'gezogen';
   const canReinvite = open || (drawn && round.wishDeadline && nowSec() < round.wishDeadline);
   const list = h('ul', { class: 'people' });
+  const analog = data.admin.analog || [];
+  const nameOf = Object.fromEntries(participants.map((x) => [x.id, x.name]));
   for (const p of participants) {
     const [rsvpLabel, rsvpKind] = RSVP_CHIP[p.rsvp];
     const link = p.inviteToken ? M.inviteLink(ctx, p.id, p.inviteToken) : null;
+    // Ohne Smartphone: Die Einladung geht an die Helfer:in (nur hier sichtbar, sonst für niemanden)
+    const analogEntry = analog.find((e) => e.pid === p.id);
+    const helping = analog.find((e) => e.helper === p.id);
+    const invite = analogEntry
+      ? helperInviteText(meta, p.name, helperNameOf(analogEntry, nameOf), link)
+      : inviteText(meta, p.name, link);
     const actions = h('div', { class: 'person-actions' });
     if (link && open) {
       add(actions,
-        h('button', { type: 'button', class: 'btn btn-small btn-primary', on: { click: () => shareText(t('Einladung'), inviteText(meta, p.name, link)) } }, t('Einladen')),
-        h('button', { type: 'button', class: 'btn btn-small', on: { click: () => copyText(inviteText(meta, p.name, link)) } }, t('Kopieren')),
-        round.emailEnabled && p.hasEmail
+        h('button', { type: 'button', class: 'btn btn-small btn-primary', on: { click: () => shareText(t('Einladung'), invite) } }, analogEntry ? t('Link an Helfer:in') : t('Einladen')),
+        h('button', { type: 'button', class: 'btn btn-small', on: { click: () => copyText(invite) } }, t('Kopieren')),
+        round.emailEnabled && p.hasEmail && !analogEntry
           ? actionButton(t('Per E-Mail'), async () => {
             await M.mailInvite(ctx, p.id, p.inviteToken);
             toast(t('Einladung an {to} verschickt.', { to: p.email ?? t('die hinterlegte Adresse') }), 'ok');
@@ -243,6 +251,8 @@ export async function renderAdmin(root, ctx) {
         h('span', { class: 'person-chips' },
           p.viaGroup ? chip(t('per Gruppenlink'), 'muted') : p.claimed ? chip(t('angenommen'), 'ok') : chip(t('Einladung offen'), 'warn'),
           p.hasEmail ? chip(p.notify ? t('✉ E-Mail') : t('✉ ohne Erinnerungen'), 'muted') : null,
+          analogEntry ? chip(t('ohne Smartphone · hilft: {helper}', { helper: helperNameOf(analogEntry, nameOf) }), 'muted') : null,
+          helping ? chip(t('hilft {name}', { name: nameOf[helping.pid] ?? '?' }), 'muted') : null,
           chip(t(rsvpLabel), rsvpKind)),
       ),
       actions,

@@ -1,6 +1,6 @@
 # Konzept: Analoge Mitwichtelnde mit digitaler Helfer:in
 
-Stand: 17. November 2026 · Status: **Vorschlag, nicht umgesetzt** · Grundlage: Code von 2.5.3 (`4ce1e4d`)
+Stand: 17. November 2026 · Status: **umgesetzt in 2.6.0** (Entscheidungen siehe Abschnitt 4) · Grundlage: Code von 2.5.3 (`4ce1e4d`)
 
 ## 1. Idee
 
@@ -33,10 +33,10 @@ helfer_in:
   sieht: "für Erna: wen sie beschenkt, deren Wünsche, Wichtelpost an und von Erna"
   traegt_ein: "Ernas Wunschzettel und Steckbrief, Ernas Antworten in der Wichtelpost"
 andere:
-  schenkende_von_erna: "sieht nach der Auslosung 'nimmt ohne Smartphone teil – Nachrichten liest eine Begleitperson'"
+  schenkende_von_erna: "sieht nichts davon (Entscheidung 2)"
   vor_der_auslosung: "sehen wie bisher keine Namen anderer (geprüft in 2.5: /me liefert nur Zählerstände)"
 server:
-  neu: nichts Sichtbares         # Markierung 'analog' und Helfer-Zuordnung liegen verschlüsselt (siehe unten)
+  neu: nichts Sichtbares         # Markierung 'analog' und Helfer-Zuordnung liegen verschlüsselt bei der Organisator:in
   schema: unverändert            # keine Migration nötig
 ```
 
@@ -46,7 +46,6 @@ server:
 | --- | --- | --- |
 | „Erna ist analog, Peter hilft“ (Liste der Paare) | Organisator-Daten (`adminCt`, Schlüssel K_admin) | nur Organisator:in |
 | Ausschluss Erna ↔ Peter | **zusätzlich** in der bestehenden Ausschlussliste (`exclusions`) | nur Organisator:in |
-| Hinweis „nimmt ohne Smartphone teil“ | im verschlüsselten Profil der Person (K_round) | Teilnehmende der Runde, nicht der Server |
 
 Der doppelte Eintrag in der Ausschlussliste ist Absicht: Eine **ältere, zwischengespeicherte App-Version** der Organisator:in
 kennt „analog“ nicht, beachtet aber Ausschlüsse schon. So können sich Erna und Peter auch dann nicht gegenseitig ziehen,
@@ -66,7 +65,7 @@ wenn die Auslosung versehentlich mit einer alten Version läuft. Bestehende Rund
 ### Ergebnis
 
 ```yaml
-grenze: "höchstens ⌊(n − 2) / 3⌋ analoge Mitwichtelnde"
+grenze: "höchstens ⌊(n − 2) / 3⌋ analoge Mitwichtelnde mit mitwichtelnder Helfer:in (externe zählen nicht, Entscheidung 1)"
 n: "alle, die mitgezogen werden (analoge eingeschlossen, Helfer:innen ohne eigene Teilnahme nicht)"
 beispiele:            # n → höchstens
   "3–4": 0
@@ -133,15 +132,21 @@ würde zu einer Veranstaltung, die überwiegend über Begleitpersonen läuft.
 
 Nachrechnen: `node tools/analyse/analog-exakt.mjs <n> <k>` und `node tools/analyse/analog-stichprobe.mjs <n> <k> 300000`.
 
-## 4. Offene Entscheidungen
+## 4. Entscheidungen (17. November 2026)
 
-| Nr. | Frage | Vorschlag |
+| Nr. | Frage | Entscheidung |
 | --- | --- | --- |
-| 1 | Zählen analoge Mitwichtelnde mit **externer** Helfer:in in die Grenze? Mathematisch kosten sie nichts (kein Ausschluss). | **Ja**, eine einzige Regel ist leichter zu erklären. Folge: Bei n = 4 ist kein analoger Platz möglich, auch nicht mit externer Hilfe. |
-| 2 | Was sieht die schenkende Person der analogen Person? | „Nimmt ohne Smartphone teil – Nachrichten liest eine Begleitperson“, **ohne** Namen der Helfer:in |
-| 3 | Analoge Mitwichtelnde auch in **Team-Runden**? | Vorerst **nein**; erst Personenrunden, Teams später, falls gewünscht |
-| 4 | Was passiert, wenn die Helfer:in vor der Auslosung absagt? | Auslosung gesperrt, bis eine neue Helfer:in eingetragen ist; der Link der analogen Person wird neu an diese verschickt |
-| 5 | Schrottwichteln (ohne Auslosung) | Funktion dort ausblenden, weil es nichts zu übermitteln gibt |
+| 1 | Zählen analoge Mitwichtelnde mit **externer** Helfer:in in die Grenze? | **Nein.** Externe Helfer:innen erzeugen keinen Ausschluss und wissen nur eine Zuordnung; die Grenze gilt nur für Paare mit mitwichtelnder Helfer:in. Folge: Auch bei 3–4 Personen ist jemand ohne Smartphone möglich, wenn die Hilfe von außerhalb kommt. |
+| 2 | Was sieht die schenkende Person der analogen Person? | **Nichts.** Jeder Hinweis würde die Person sofort verraten. |
+| 3 | Analoge Mitwichtelnde auch in Team-Runden? | **Nein.** Team-Wichteln ist gesperrt, solange jemand ohne Smartphone eingetragen ist, und umgekehrt. |
+| 4 | Helfer:in sagt vor der Auslosung ab | Auslosung gesperrt, bis eine neue Helfer:in eingetragen ist |
+| 5 | Schrottwichteln | Funktion dort nicht angeboten |
+
+Folge aus Entscheidung 2 für Abschnitt 2: Es gibt **keinen** Hinweis im Profil der Person. Alle Angaben liegen nur in den
+Organisator-Daten (K_admin).
+
+Ergänzung bei der Umsetzung: Steckbrief-Angaben zu Allergien sind Gesundheitsdaten. Die Helfer:in trägt sie für eine andere
+Person ein; der Einladungstext an die Helfer:in bittet deshalb, sie nur mit deren Einverständnis einzutragen.
 
 ## 5. Aufwand und Prüfung
 

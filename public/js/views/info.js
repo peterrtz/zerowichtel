@@ -8,7 +8,7 @@ import { page, card, mount, setTitle, notice, loading } from './common.js';
 import { t, lang } from '../lib/i18n.js';
 
 const MISSING = '[in config.json unter „operator“ eintragen]';
-const STAND = '14. November 2026';
+const STAND = '17. November 2026';
 
 function operatorBlock(op) {
   const lines = [op.name, op.street, op.city].map((x) => x || null);
@@ -39,6 +39,7 @@ function privacy(info) {
     ['Sprache der Runde, Freischaltzeitpunkte von Rätselhinweisen (Klartext)', 'Sprache automatischer E-Mails; Hinweise erst zum gewählten Zeitpunkt ausliefern', 'wie oben', 'wie oben'],
     ['Gruppenlink (nur falls genutzt): Prüfwert, Ablaufdatum, Höchstzahl, Zahl der Eintragungen; je Person, ob sie sich selbst eingetragen hat', 'Selbst-Eintragen über einen gemeinsamen Link', 'wie oben', 'bis Widerruf des Links bzw. Löschung der Runde'],
     ['Team-Wichteln (nur falls genutzt): Teamliste, gewähltes Team je Person und gemeinsamer Team-Wunschzettel (ohne Gesundheitsangaben), alles verschlüsselt; im Klartext nur, ob eine Runde Teams hat, wie viele Teams gezogen wurden und ein Änderungszähler des Team-Wunschzettels', 'Gemeinsames Beschenken zwischen Teams. Vor der Auslosung sehen Teilnehmende je Team nur die Zahl der Mitglieder (dazu deren zufällige Kennungen, keine Namen); nach der Auslosung sehen sie die Namen im eigenen und im beschenkten Team', 'Art. 6 Abs. 1 lit. b und f DSGVO', 'bis zur Löschung der Runde; Teamwahlen sofort beim Ausschalten des Team-Wichtelns'],
+    ['Ohne Smartphone mitwichteln (nur falls genutzt): wer ohne Smartphone teilnimmt und wer dabei hilft (bei Hilfe von außerhalb deren Name), verschlüsselt und nur für die Organisator:in lesbar', 'Die Helfer:in öffnet den Link der Person auf dem eigenen Gerät, sieht für sie Zuordnung, Wünsche und Wichtelpost und trägt in ihrem Namen ein. Wer die Person beschenkt, erfährt davon nichts. Gesundheitsangaben trägt die Helfer:in nur mit Einverständnis der Person ein.', 'Art. 6 Abs. 1 lit. b und f DSGVO; für Gesundheitsangaben wie oben', 'bis zur Löschung der Runde'],
     ['Ob jemand seine Seite nach der Ziehung schon geöffnet hat (ja/nein) und wann zuletzt per E-Mail erinnert wurde', 'Erinnerung durch die Organisator:in, damit Wunschlisten ankommen; verrät nicht, wer wen beschenkt', 'Art. 6 Abs. 1 lit. f DSGVO', 'bis zur Löschung der Runde; zurückgesetzt bei Neuziehung'],
     ['Prüfwerte (Hashes) von Zugangscodes und öffentliche Schlüssel', 'Zugangskontrolle ohne Passwörter', 'wie oben', 'wie oben'],
     ['E-Mail-Adressen (nur im E-Mail-Modus, mit Serverschlüssel verschlüsselt)', 'Einladungen, Links auf Anforderung, Erinnerungen', 'Art. 6 Abs. 1 lit. b und f DSGVO', 'bis Abbestellen/Löschen durch die Person, Abschalten des E-Mail-Modus oder Löschung der Runde'],

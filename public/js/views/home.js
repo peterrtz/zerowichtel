@@ -27,7 +27,7 @@ export function renderHome(root) {
     list.appendChild(h('li', null,
       h('a', { href: e.fragment, class: 'round-link' },
         h('span', { class: 'round-link-title' }, e.title || t('Wichtelrunde')),
-        h('span', { class: 'round-link-meta' }, `${role}${e.eventDate ? ' · ' + formatShort(e.eventDate) : ''}`),
+        h('span', { class: 'round-link-meta' }, `${role}${e.who ? ' · ' + e.who : ''}${e.eventDate ? ' · ' + formatShort(e.eventDate) : ''}`),
       ),
       del,
     ));

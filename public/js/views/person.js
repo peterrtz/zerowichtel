@@ -84,7 +84,7 @@ export async function renderPerson(root, pctx) {
   const key = { kind: 'p', roundId: pctx.roundId, pid: pctx.pid };
   const fragment = M.personFragment(pctx);
   const known = findLink(key);
-  saveLink({ ...(known || {}), ...key, fragment, title: meta.title, eventDate: round.eventDate });
+  saveLink({ ...(known || {}), ...key, fragment, title: meta.title, who: name, eventDate: round.eventDate });
   setTitle(meta.title);
   const reload = () => renderPerson(root, pctx);
   const stored = findLink(key);

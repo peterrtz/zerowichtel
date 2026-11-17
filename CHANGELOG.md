@@ -1,5 +1,16 @@
 # Änderungen
 
+## 2.6.0 – 2026-11-17
+
+Neu: **Ohne Smartphone mitwichteln.** Server und Datenbankschema (7) sind unverändert; bestehende Runden laufen weiter.
+
+- Die Organisator:in trägt vor der Auslosung ein, wer ohne Smartphone mitwichtelt und wer dabei hilft – jemand aus der Runde oder jemand, der selbst nicht mitwichtelt. Die Helfer:in bekommt den Link dieser Person, nimmt die Einladung auf dem eigenen Gerät an, sieht für sie Zuordnung, Wünsche und Wichtelpost und trägt ihre Wünsche ein.
+- Wichtelt die Helfer:in selbst mit, ziehen sich die beiden nie gegenseitig. Jede Person hilft höchstens einer Person.
+- Grenze: höchstens ⌊(n − 2) / 3⌋ Personen ohne Smartphone mit mitwichtelnder Helfer:in (n = Ausgeloste); Helfer:innen von außerhalb zählen nicht. Herleitung mit exakter Auswertung und Skripten zum Nachrechnen: `docs/KONZEPT-ANALOG.md`, `tools/analyse/`.
+- Wer die Person beschenkt, sieht nichts davon. Die Zuordnung liegt verschlüsselt in den Organisator-Daten; das Paar steht zusätzlich in der Ausschlussliste, damit auch ältere, zwischengespeicherte App-Versionen es beachten.
+- Sagt eine Helfer:in vor der Auslosung ab, bleibt die Auslosung gesperrt, bis jemand anderes eingetragen ist. Nicht kombinierbar mit Team-Wichteln.
+- „Meine Runden“ zeigt bei Teilnahmen den Namen – zwei Zugänge derselben Runde auf einem Gerät lassen sich so unterscheiden.
+
 ## Nach 2.5.3 (nur Dokumentation, kein neues Paket)
 
 - README und Anleitungen nennen die Release-Seite als Bezugsquelle des Installationspakets.

@@ -14,7 +14,7 @@ betroffene:
   - Organisator:innen
   - von ihnen eingeladene Teilnehmende
 datenkategorien:
-  verschluesselt_ohne_schluessel_beim_betreiber: [Rundentitel, Begrüßung, Spielregeln, Anzeigenamen, Wunschlisten und Steckbrief, Nachrichten, Rätselhinweise, Zuordnung, "Team-Wichteln: Teamliste, gewähltes Team je Person, Team-Wunschzettel (ohne Gesundheitsangaben)"]
+  verschluesselt_ohne_schluessel_beim_betreiber: [Rundentitel, Begrüßung, Spielregeln, Anzeigenamen, Wunschlisten und Steckbrief, Nachrichten, Rätselhinweise, Zuordnung, "Team-Wichteln: Teamliste, gewähltes Team je Person, Team-Wunschzettel (ohne Gesundheitsangaben)", "Ohne Smartphone mitwichteln: wer ohne Smartphone teilnimmt, wer hilft, bei Hilfe von außerhalb deren Name (nur Organisator:in, K_admin)"]
   besondere_kategorien_art9:            # optional, nur mit ausdrücklicher Einwilligung
     daten: "Allergien und Unverträglichkeiten (Steckbrief), Ende-zu-Ende-verschlüsselt, nur für den eigenen Wichtel sichtbar"
     rechtsgrundlage: "Art. 9 Abs. 2 lit. a i. V. m. Art. 6 Abs. 1 lit. a DSGVO"
@@ -25,6 +25,7 @@ datenkategorien:
   verschluesselt_mit_serverschluessel: [E-Mail-Adressen, optionaler Betreff-Titel]
   klartext: [Spielart, Fristen, Zu-/Absage, Status, Zeitpunkte, Prüfwerte von Zugangscodes, öffentliche Schlüssel, "Seite nach der Ziehung geöffnet (ja/nein)", "Zeitpunkt der letzten E-Mail-Erinnerung", "Sprache der Runde", "Freischaltzeitpunkte von Rätselhinweisen", "Gruppenlink: Prüfwert, Ablauf, Höchstzahl, Zahl der Eintragungen", "per Gruppenlink eingetragen (ja/nein)", "Runde mit Teams (ja/nein)", "Zahl der gezogenen Teams (= Zahl der Postfächer)", "Änderungszähler des Team-Wunschzettels", "angelegt ohne Organisator-Code (ja/nein)"]
   kurzlebig: ["gekürzter, täglich gesalzener IP-Prüfwert (max. 24 h; IPv6 je /64)"]
+  ohne_smartphone: "Der Link der Person liegt bei der Helfer:in; sie trägt Wünsche und Steckbrief in deren Namen ein. Gesundheitsangaben nur mit Einverständnis der Person – darauf weist der Einladungstext an die Helfer:in hin. Wer die Person beschenkt, sieht davon nichts; der Server erfährt nichts davon."
   sichtbarkeit_team_wichteln: "Vor der Auslosung sehen Teilnehmende je Team nur die Zahl der Mitglieder und deren zufällige Kennungen, keine Namen; nach der Auslosung die Namen im eigenen und im beschenkten Team."
 rechtsgrundlagen:
   - "Art. 9 Abs. 2 lit. a i. V. m. Art. 6 Abs. 1 lit. a DSGVO (optionale Gesundheitsangaben im Steckbrief, Einwilligung)"

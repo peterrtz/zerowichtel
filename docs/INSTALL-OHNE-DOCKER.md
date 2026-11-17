@@ -24,12 +24,12 @@ node -e 'console.log(process.version, typeof require("node:crypto").argon2Sync)'
 
 ## 2. Code, Benutzer, Konfiguration
 
-Das Paket `zerowichtel-2.5.3.zip` von der [Release-Seite](https://github.com/peterrtz/zerowichtel/releases) laden und die dort genannte SHA-256-Prüfsumme vergleichen.
+Das Paket `zerowichtel-2.6.0.zip` von der [Release-Seite](https://github.com/peterrtz/zerowichtel/releases) laden und die dort genannte SHA-256-Prüfsumme vergleichen.
 
 ```sh
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin zerowichtel
 sudo mkdir -p /opt/zerowichtel /etc/zerowichtel
-sudo unzip -o zerowichtel-2.5.3.zip 'server/*' 'public/*' config.example.json -d /opt/zerowichtel
+sudo unzip -o zerowichtel-2.6.0.zip 'server/*' 'public/*' config.example.json -d /opt/zerowichtel
 sudo chown -R root:root /opt/zerowichtel && sudo chmod -R u=rwX,go=rX /opt/zerowichtel
 
 # Konfiguration mit zufälligem Serverschlüssel
@@ -47,7 +47,7 @@ Wer von 1.x kommt: Werte aus `config.php` übernehmen – vor allem **denselben 
 
 ```sh
 sudo cp /opt/zerowichtel/deploy/zerowichtel.service /etc/systemd/system/ 2>/dev/null \
-  || sudo unzip -o -j zerowichtel-2.5.3.zip deploy/zerowichtel.service -d /etc/systemd/system/
+  || sudo unzip -o -j zerowichtel-2.6.0.zip deploy/zerowichtel.service -d /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now zerowichtel
 systemctl status zerowichtel

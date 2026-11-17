@@ -5,11 +5,109 @@ import { shareText } from '../lib/share.js';
 import { linkBase } from '../lib/api.js';
 import * as M from '../lib/model.js';
 import { precheck, teamPrecheck } from '../lib/draw.js';
+import { analogPrecheck, analogChoices, analogLimit, manualExclusions, mergeExclusions, ANALOG_HELPER_NAME_MAX } from '../lib/analog.js';
 import { formatDate, nowSec } from '../lib/dates.js';
 import { card, chip, notice } from './common.js';
 import { t, tn } from '../lib/i18n.js';
 
 const newGroupId = () => Math.random().toString(36).slice(2, 10);
+const EXTERNAL = '__extern';
+
+/** Text für die Helfer:in: Link der analogen Person, mit kurzer Anleitung. */
+export function helperInviteText(meta, analogName, helperName, link) {
+  return t('Hallo {helper}! {name} wichtelt bei „{title}“ ohne Smartphone mit, und du hilfst dabei.\n\nÖffne diesen Link auf deinem Gerät und nimm die Einladung für {name} an. Danach siehst du dort, wen {name} beschenkt und was sich diese Person wünscht, und du trägst die Wünsche von {name} ein. Deine eigene Teilnahme bleibt davon getrennt. Allergien oder Unverträglichkeiten bitte nur eintragen, wenn {name} damit einverstanden ist.\n\nBitte nicht weiterleiten:\n{link}', { helper: helperName, name: analogName, title: meta.title, link });
+}
+
+/** Name der Helfer:in eines Eintrags (mitwichtelnd oder extern). */
+export function helperNameOf(entry, names) {
+  return entry.helper ? (names[entry.helper] ?? t('(entfernte Person)')) : (entry.helperName || t('Helfer:in'));
+}
+
+/** Ohne Smartphone mitwichteln: analoge Person + Helfer:in festlegen. Nur vor der Ziehung, nicht im Team-Modus. */
+function analogCard({ ctx, data, state, save, onChange }) {
+  const { participants, meta } = data;
+  const names = Object.fromEntries(participants.map((p) => [p.id, p.name]));
+  const byId = Object.fromEntries(participants.map((p) => [p.id, p]));
+  const body = h('div');
+
+  const render = () => {
+    clear(body);
+    const change = () => { state.dirty = true; onChange(); render(); };
+    const choices = analogChoices(state.analog);
+    const ids = participants.filter((p) => p.rsvp === 'dabei' && p.claimed).map((p) => p.id);
+    const internal = state.analog.filter((e) => e.helper).length;
+    const limit = analogLimit(ids.length);
+
+    const list = h('ul', { class: 'ex-list analog-list' }, state.analog.map((e, i) => {
+      const p = byId[e.pid];
+      const helperName = helperNameOf(e, names);
+      const link = p?.inviteToken ? M.inviteLink(ctx, e.pid, p.inviteToken) : null;
+      return h('li', null,
+        h('span', null, t('{name} – hilft: {helper}', { name: names[e.pid], helper: helperName }),
+          e.helper ? null : h('span', { class: 'hint' }, ' ', t('(wichtelt nicht mit)'))),
+        h('span', { class: 'person-actions' },
+          link
+            ? h('button', { type: 'button', class: 'btn btn-small btn-primary', on: { click: () => shareText(t('Einladung'), helperInviteText(meta, names[e.pid], helperName, link)) } }, t('Link an Helfer:in'))
+            : chip(p?.claimed ? t('angenommen') : t('Einladung offen'), p?.claimed ? 'ok' : 'warn'),
+          h('button', { type: 'button', class: 'btn btn-small btn-ghost', on: { click: () => { state.analog.splice(i, 1); change(); } } }, t('Entfernen'))));
+    }));
+
+    const candidates = participants.filter((p) => p.rsvp !== 'raus');
+    const selAnalog = h('select', { 'aria-label': t('Wer wichtelt ohne Smartphone mit?') },
+      h('option', { value: '' }, t('Person wählen')),
+      candidates.filter((p) => choices.analogOk(p.id)).map((p) => h('option', { value: p.id }, p.name)));
+    const selHelper = h('select', { 'aria-label': t('Wer hilft?') });
+    const extName = h('input', { type: 'text', maxlength: ANALOG_HELPER_NAME_MAX, placeholder: t('Name der Helfer:in'), 'aria-label': t('Name der Helfer:in'), hidden: true });
+    const fillHelpers = () => {
+      clear(selHelper);
+      add(selHelper,
+        h('option', { value: '' }, t('Helfer:in wählen')),
+        candidates.filter((p) => choices.helperOk(p.id, selAnalog.value)).map((p) => h('option', { value: p.id }, p.name)),
+        h('option', { value: EXTERNAL }, t('jemand, der nicht mitwichtelt …')));
+    };
+    fillHelpers();
+    selAnalog.addEventListener('change', fillHelpers);
+    selHelper.addEventListener('change', () => { extName.hidden = selHelper.value !== EXTERNAL; if (!extName.hidden) extName.focus(); });
+    const addBtn = h('button', {
+      type: 'button', class: 'btn btn-small',
+      on: {
+        click: () => {
+          const pid = selAnalog.value;
+          const helper = selHelper.value;
+          if (!pid || !helper) return toast(t('Bitte die Person ohne Smartphone und die Helfer:in wählen.'), 'error');
+          if (helper === EXTERNAL) {
+            const n = extName.value.trim().slice(0, ANALOG_HELPER_NAME_MAX);
+            if (!n) return toast(t('Bitte den Namen der Helfer:in angeben.'), 'error');
+            state.analog.push({ pid, helper: null, helperName: n });
+          } else {
+            state.analog.push({ pid, helper });
+          }
+          change();
+        },
+      },
+    }, t('Eintragen'));
+
+    add(body,
+      h('p', null, t('Wer kein Smartphone hat, wichtelt trotzdem mit: Eine Helfer:in öffnet den Link dieser Person auf dem eigenen Gerät, sieht für sie, wen sie beschenkt und was sich diese Person wünscht, und trägt ihre Wünsche ein.')),
+      h('p', { class: 'hint' }, t('Hilft jemand, der selbst mitwichtelt, ziehen sich die beiden nie gegenseitig. Jede Person kann nur für eine Person helfen. Wer beschenkt wird, sieht davon nichts. Die Zuordnung ist verschlüsselt und nur für dich sichtbar.')),
+      state.analog.length ? list : h('p', { class: 'hint' }, t('Noch niemand eingetragen.')),
+      h('div', { class: 'ex-add analog-add' }, selAnalog, selHelper, extName, addBtn),
+      h('p', { class: 'hint' }, limit > 0
+        ? t('Mit mitwichtelnder Helfer:in: {used} von höchstens {limit} bei derzeit {n} Zusagen. Helfer:innen, die nicht mitwichteln, zählen nicht mit.', { used: internal, limit, n: ids.length })
+        : t('Bei derzeit {n} Zusagen geht es nur mit einer Helfer:in, die nicht mitwichtelt; ab 5 Zusagen auch mit einer, die mitwichtelt.', { n: ids.length })),
+      h('details', { class: 'inline-details' },
+        h('summary', null, t('Helfer:in wechseln')),
+        h('p', null, t('Eintrag entfernen und neu eintragen. Hat die bisherige Helfer:in die Einladung schon angenommen, liegt der Zugang auf ihrem Gerät: Lade die Person dann neu ein (⋯ → Neu einladen) und schicke den neuen Link an die neue Helfer:in.'))),
+      h('div', { class: 'form-actions' },
+        actionButton(state.dirty ? t('Regeln speichern') : t('Gespeichert'), async () => { await save(); toast(t('Regeln gespeichert.'), 'ok'); render(); onChange(); },
+          { cls: state.dirty ? 'btn btn-primary' : 'btn' })));
+  };
+  render();
+  return {
+    el: h('details', { class: 'card rules-card', open: state.analog.length > 0 }, h('summary', null, t('Ohne Smartphone mitwichteln (optional)')), body),
+    render,
+  };
+}
 
 /** Wer hat seine Seite seit der Ziehung geöffnet? Nur ja/nein – verrät keine Zuordnung. */
 function seenSection({ ctx, data, reload }) {
@@ -67,6 +165,10 @@ function teamCard({ ctx, data, reload }) {
 
   const render = () => {
     clear(body);
+    if (!on && (data.admin?.analog || []).length) {
+      add(body, notice(t('Team-Wichteln geht nicht zusammen mit Mitwichtelnden ohne Smartphone. Entferne erst die Einträge unter „Ohne Smartphone mitwichteln“.'), 'info'));
+      return;
+    }
     if (!on) {
       add(body,
         h('p', null, t('Statt Person für Person beschenken sich ganze Teams: Team A beschenkt Team B, Team B beschenkt Team C … Wer zugesagt hat, wählt auf der eigenen Seite ein Team; du kannst Personen auch selbst zuordnen.')),
@@ -158,24 +260,29 @@ export async function adminDrawSection({ ctx, data, reload }) {
   if (round.status === 'offen') {
     // Arbeitskopie der Regeln; gespeichert wird verschlüsselt mit K_admin
     const known = new Set(participants.map((p) => p.id));
+    const analog = structuredClone(data.admin.analog || []);
     const state = {
       groups: (data.admin.groups || []).map((g) => ({ ...g, members: g.members.filter((m) => known.has(m)) })),
-      exclusions: (data.admin.exclusions || []).filter(([a, b]) => known.has(a) && known.has(b)),
+      // Paare analog ↔ Helfer:in stehen zusätzlich in der Ausschlussliste; angezeigt werden sie nur unter „Ohne Smartphone“
+      exclusions: manualExclusions((data.admin.exclusions || []).filter(([a, b]) => known.has(a) && known.has(b)), analog),
+      analog,
       dirty: false,
     };
     const rulesBody = h('div');
     const drawBody = h('div');
 
     const save = async () => {
-      await M.updateAdminData(ctx, { v: 1, groups: state.groups, exclusions: state.exclusions });
+      const admin = { v: 1, groups: state.groups, exclusions: mergeExclusions(state.exclusions, state.analog), analog: state.analog };
+      await M.updateAdminData(ctx, admin);
       state.dirty = false;
-      data.admin = { v: 1, groups: state.groups, exclusions: state.exclusions };
+      data.admin = structuredClone(admin);
     };
 
+    let analogRerender = () => {};
     const renderRules = () => {
       clear(rulesBody);
       const groupOf = (pid) => state.groups.find((g) => g.members.includes(pid));
-      const change = () => { state.dirty = true; renderRules(); renderDraw(); };
+      const change = () => { state.dirty = true; renderRules(); renderDraw(); analogRerender(); };
 
       // Untergruppen
       const groupList = h('div', { class: 'groups' });
@@ -239,7 +346,7 @@ export async function adminDrawSection({ ctx, data, reload }) {
         h('div', { class: 'ex-add' }, selA, selB, addEx),
         h('p', { class: 'hint' }, t('Gruppen und Ausschlüsse sind verschlüsselt und nur für dich sichtbar.')),
         h('div', { class: 'form-actions' },
-          actionButton(state.dirty ? t('Regeln speichern') : t('Gespeichert'), async () => { await save(); toast(t('Regeln gespeichert.'), 'ok'); renderRules(); },
+          actionButton(state.dirty ? t('Regeln speichern') : t('Gespeichert'), async () => { await save(); toast(t('Regeln gespeichert.'), 'ok'); renderRules(); analogRerender(); },
             { cls: state.dirty ? 'btn btn-primary' : 'btn' })),
       );
     };
@@ -252,7 +359,10 @@ export async function adminDrawSection({ ctx, data, reload }) {
       const open = participants.filter((p) => p.rsvp === 'offen');
       const ids = dabei.map((p) => p.id);
       const teamMode = data.teams !== null;
-      const pre = teamMode ? teamPrecheck(data.teams, dabei) : precheck(ids, state.groups, state.exclusions, names);
+      const analogPre = teamMode ? { ok: true } : analogPrecheck(state.analog, ids, names);
+      const pre = teamMode ? teamPrecheck(data.teams, dabei)
+        : !analogPre.ok ? analogPre
+          : precheck(ids, state.groups, mergeExclusions(state.exclusions, state.analog), names);
       const deadlinePassed = nowSec() >= round.rsvpDeadline;
       add(drawBody, 
         h('p', null, tn(dabei.length, '{n} Person ist dabei.', '{n} Personen sind dabei.')),
@@ -290,8 +400,11 @@ export async function adminDrawSection({ ctx, data, reload }) {
 
     renderRules();
     renderDraw();
+    const analogPart = data.teams === null ? analogCard({ ctx, data, state, save, onChange: () => { renderRules(); renderDraw(); } }) : null;
+    if (analogPart) analogRerender = analogPart.render;
     add(wrap,
       teamCard({ ctx, data, reload }),
+      analogPart?.el,
       data.teams === null
         ? h('details', { class: 'card rules-card', open: state.groups.length > 0 || state.exclusions.length > 0 },
           h('summary', null, t('Untergruppen und Ausschlüsse')), rulesBody)

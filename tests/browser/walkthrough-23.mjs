@@ -246,6 +246,8 @@ try {
     await fill(r, 'Dein Tipp', gName);
     await clickText(r, 'Tipp abgeben');
     await waitText(r, 'Tipp verschickt.');
+    // Nach dem Tipp wird die Ansicht neu aufgebaut; erst danach gibt es das Feld (sonst gelegentlich „Kein Feld“)
+    await r.waitForFunction(() => [...document.querySelectorAll('label')].some((x) => x.textContent.replace(' *', '').trim() === 'Dein Dankeschön'), { timeout: 10000, polling: 100 });
     await fill(r, 'Dein Dankeschön', 'Danke, der Tee ist super!');
     await clickText(r, 'Danke senden');
     await waitText(r, 'Dankeschön verschickt.');
