@@ -122,6 +122,8 @@ export async function renderCreate(root, prefillCode = '') {
         h('label', { class: 'mode-option' }, modeSchrott,
           h('span', null, h('strong', null, t('Schrottwichteln')), h('small', null, t('Alle bringen ein Päckchen mit, vor Ort wird gewürfelt.')))),
       ),
+      h('a', { class: 'mode-option mode-link', href: '#analog' },
+        h('span', null, h('strong', null, t('Analoge Wichtelrunde')), h('small', null, t('Ganz ohne Handy: Namen eintragen, Lose, Regeln und Karten ausdrucken. Ohne Code, nichts wird auf dem Server gespeichert.')))),
     ),
     card(t('Die Runde'),
       field(t('Titel'), title),

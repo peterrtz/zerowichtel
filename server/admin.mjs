@@ -7,6 +7,7 @@
 // - Die API liegt unter einem geheimen Pfad (/admin/<slug>/…); ohne passenden Pfad, ohne Einrichtung
 //   oder mit admin.enabled = false antwortet sie wie ein unbekannter Endpunkt.
 // - Der Admin-Bereich sieht keine Rundeninhalte – nur Codes, Zähler und das eigene Protokoll.
+import { analogStats } from './stats.mjs';
 import crypto from 'node:crypto';
 import { ServerCrypto, hashPassword, verifyPassword, rand22, randomFrom32, safeEqual, sha256 } from './crypto.mjs';
 import { all, one, run, tx, value } from './db.mjs';
@@ -275,6 +276,7 @@ export class Admin {
       activeCodes: this.codes(now).filter((c) => c.status === 'aktiv').length,
       roundsWithoutCode: q('SELECT COUNT(*) FROM rounds WHERE without_code = 1'),
       recoveryLeft: this.unusedRecoveryCount(),
+      analog: analogStats(this.db),
     };
   }
 

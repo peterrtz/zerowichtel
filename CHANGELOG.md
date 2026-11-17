@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2.7.0 – 2026-11-17
+
+Neu: **Analoge Wichtelrunde zum Ausdrucken** – dritte Option neben Wichteln und Schrottwichteln (Startseite und „Neue Runde“, ohne Organisator-Code). Datenbankschema (7) unverändert.
+
+- Namen eintragen (3 bis 50), optional Titel, Datum, Ort, Betragslimit und eine Notiz.
+- Lose wahlweise **verdeckt vorgelost** (Standard; die App lost im Browser aus, ein Kreis, niemand zieht sich selbst, Paare ausschließbar; außen „Los für …“, innen verdeckt die beschenkte Person, mit Abdeckklappe) oder **klassisch aus dem Hut** (ein Zettel je Name, die Regeln erklären das Neuziehen).
+- Spielregeln als eine Seite, passend zur Art der Lose; kleine Einladungs- oder Erinnerungskarten (4 je A4-Seite) in drei eigenen, dezenten Designs: Tannenzweig, Sterne, Schleife. Gedruckt wird über den Browser („Drucken“ oder „Als PDF speichern“).
+- Eingaben und Lose bleiben nur im lokalen Speicher dieses Browsers, auch über Neuladen und Neustart, bis „Alles löschen“. Der Server sieht keine Namen, Termine oder Lose.
+- Admin-Bereich und `zw check`: Zähler, wie viele analoge Runden vorbereitet wurden (gesamt und im laufenden Jahr). Gezählt wird einmal je Vorbereitung beim ersten Druck; ohne Inhalte, höchstens 5 je Anschluss und Tag (neue Begrenzung `rate_limits.analog`).
+
 ## 2.6.0 – 2026-11-17
 
 Neu: **Ohne Smartphone mitwichteln.** Server und Datenbankschema (7) sind unverändert; bestehende Runden laufen weiter.

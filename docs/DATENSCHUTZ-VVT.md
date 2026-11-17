@@ -25,6 +25,7 @@ datenkategorien:
   verschluesselt_mit_serverschluessel: [E-Mail-Adressen, optionaler Betreff-Titel]
   klartext: [Spielart, Fristen, Zu-/Absage, Status, Zeitpunkte, Prüfwerte von Zugangscodes, öffentliche Schlüssel, "Seite nach der Ziehung geöffnet (ja/nein)", "Zeitpunkt der letzten E-Mail-Erinnerung", "Sprache der Runde", "Freischaltzeitpunkte von Rätselhinweisen", "Gruppenlink: Prüfwert, Ablauf, Höchstzahl, Zahl der Eintragungen", "per Gruppenlink eingetragen (ja/nein)", "Runde mit Teams (ja/nein)", "Zahl der gezogenen Teams (= Zahl der Postfächer)", "Änderungszähler des Team-Wunschzettels", "angelegt ohne Organisator-Code (ja/nein)"]
   kurzlebig: ["gekürzter, täglich gesalzener IP-Prüfwert (max. 24 h; IPv6 je /64)"]
+  analoge_wichtelrunde: "Vorbereitung komplett im Browser; Namen, Termine und Lose nur im lokalen Speicher des Browsers bis „Alles löschen“. Server: nur Zähler stat_analog (gesamt, je Jahr), Begrenzung über den täglich wechselnden Prüfwert der IP wie bei allen Anfragen."
   ohne_smartphone: "Der Link der Person liegt bei der Helfer:in; sie trägt Wünsche und Steckbrief in deren Namen ein. Gesundheitsangaben nur mit Einverständnis der Person – darauf weist der Einladungstext an die Helfer:in hin. Wer die Person beschenkt, sieht davon nichts; der Server erfährt nichts davon."
   sichtbarkeit_team_wichteln: "Vor der Auslosung sehen Teilnehmende je Team nur die Zahl der Mitglieder und deren zufällige Kennungen, keine Namen; nach der Auslosung die Namen im eigenen und im beschenkten Team."
 rechtsgrundlagen:

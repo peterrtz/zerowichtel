@@ -22,6 +22,7 @@ Der Server ist ein einzelner Node.js-Prozess (≥ 24.7) ohne npm-Pakete. Er lief
 | `server/mail/texts.mjs` | Alle Mailtexte auf Deutsch und Englisch (Sprache der Runde) – ohne Namen, Wünsche oder Zuordnungen |
 | `server/cli.mjs` | `zw codes …`, `zw open …` und `zw admin …` (verdeckte Passworteingabe, QR-Code im Terminal) |
 | `server/open-creation.mjs` | Anlegen ohne Organisator-Code: Einstellung in `meta` (`open_creation`: an/aus, Obergrenze 1–500, E-Mail ja/nein); belegt = bestehende Runden mit `without_code = 1` |
+| `server/stats.mjs` | Zähler „analoge Wichtelrunde vorbereitet“ in `meta` (`stat_analog`: gesamt und je Jahr) – ohne Inhalte |
 | `server/backup.mjs` | `zw backup`: konsistente Kopie per `VACUUM INTO` nach `data/backup/` (0600), rotierende Löschung eigener Sicherungen |
 
 ## Ablauf einer Anfrage
@@ -81,6 +82,7 @@ IDs und Tokens: 22 Zeichen Base64url (128 Bit). Gespeichert wird nur SHA-256 (he
 | `PUT /rounds/{id}/participants/{pid}/team` | a | Team einer Person setzen (`teamCt`, K_round, AAD an die Person gebunden; `null` = ohne Team); nur offen |
 | `PUT /me/team` | p | eigenes Team wählen; nur offen, nicht bei Absage |
 | `PUT /rounds/{id}/draw` | a | Ziehung; `kind` muss zur Runde passen (`team` ⇔ Teamliste gesetzt). Team: 2 … Teilnehmende Postfächer, Zuordnung bis 12 000 Zeichen |
+| `POST /stats/analog` | – | Analoge Wichtelrunde vorbereitet: zählt nur (+1 gesamt und im laufenden Jahr), Körper wird ignoriert; höchstens 5 je Anschluss und Tag (`rate_limits.analog`) |
 | `PUT /mailbox/wish` mit `rev` | r | Team-Runden: Pflicht; anderer Stand → 409 `conflict` (atomar). `GET /mailbox` liefert `wishRev`. `withdraw` gilt nur in Personen-Runden |
 
 ## Hintergrund

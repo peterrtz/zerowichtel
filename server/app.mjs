@@ -11,6 +11,7 @@
 import { Admin } from './admin.mjs';
 import { checkCode, consumeCode } from './codes.mjs';
 import { openSettings, openStatus, openUsage, saveOpenSettings, describeOpen, OPEN_MAX } from './open-creation.mjs';
+import { countAnalog } from './stats.mjs';
 import { maybeCleanup, shred } from './cleanup.mjs';
 import crypto from 'node:crypto';
 import { ServerCrypto, safeEqual, sha256 } from './crypto.mjs';
@@ -21,7 +22,7 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.6.0';
+export const VERSION = '2.7.0';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
@@ -158,6 +159,7 @@ export class App {
       r('POST', '/join', (q) => this.join(q)),
       r('POST', '/mailbox/hints', (q) => this.addHint(q)),
       r('DELETE', '/mailbox/hints/:id', (q, hid) => this.deleteHint(q, hid)),
+      r('POST', '/stats/analog', (q) => this.statsAnalog(q)),
     ];
   }
 
@@ -208,6 +210,14 @@ export class App {
       return noContent();
     }
     throw new HttpError(404, 'not_found', 'Unbekannter Endpunkt.');
+  }
+
+  /** Analoge Wichtelrunde vorbereitet: nur zählen, keine Inhalte. Begrenzt je Anschluss und Tag. */
+  statsAnalog(req) {
+    const now = this.now();
+    this.limiter.hit('analog', req.ip, now);
+    countAnalog(this.db, now);
+    return noContent();
   }
 
   /** Anlegen ohne Code ein-/ausschalten, Obergrenze gleichzeitiger Runden, E-Mail für solche Runden. */

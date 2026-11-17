@@ -15,6 +15,7 @@ import { renderBackend } from './views/backend.js';
 import { renderJump } from './views/jump.js';
 import { renderJoin } from './views/join.js';
 import { renderDemo } from './views/demo.js';
+import { renderAnalogRound } from './views/analog.js';
 import { initMusic } from './lib/music.js';
 import { initCryptoInfo } from './views/crypto-info.js';
 import { stopSnow } from './lib/snow.js';
@@ -44,6 +45,7 @@ async function route() {
       case 'wiederherstellen': return renderRecover(root, arg || '');
       case 'wuerfel': return renderDiceOnly(root);
       case 'demo': return renderDemo(root);
+      case 'analog': return renderAnalogRound(root);
       case 'datenschutz':
       case 'impressum':
       case 'hilfe':

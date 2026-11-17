@@ -26,6 +26,7 @@ export const DEFAULTS = {
     mail_round: [120, 86400],
     mail_admin: [5, 86400],
     admin: [30, 3600],
+    analog: [5, 86400], // Zähler „analoge Wichtelrunde vorbereitet“ je Anschluss und Tag
   },
   client_ip_header: null, // z. B. 'X-Forwarded-For' hinter einem Reverse Proxy
   operator: { name: '', street: '', city: '', email: '', phone: '' },

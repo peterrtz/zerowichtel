@@ -1264,6 +1264,36 @@ test23('Sicherheit 2.5.2: Runden ohne Code verschicken keine Admin-Link-Mails, w
   eq(200, await e.status('POST', '/mail/link', { kind: 'admin', link: `https://zw.example/#a/${withCode.id}/${tok}/${key}/${key}`, email: 'ich@example.org' }, withCode.admin));
 });
 
+test('2.7: Analoge Wichtelrunde – nur ein Zähler, ohne Inhalte, begrenzt je Anschluss und Tag', async () => {
+  const a = await adminEnv();
+  const e = a.env;
+  const meta = () => e.count("SELECT value FROM meta WHERE key = 'stat_analog'");
+  eq(undefined, meta(), 'vorher kein Eintrag');
+  eq(204, await e.status('POST', '/stats/analog', undefined, null, '10.9.0.1'));
+  // Ein mitgeschickter Inhalt wird nicht gespeichert
+  eq(204, await e.status('POST', '/stats/analog', { names: ['Erna', 'Peter'], title: 'Geheim' }, null, '10.9.0.1'));
+  const year = String(new Date(e.now * 1000).getUTCFullYear());
+  eq({ total: 2, years: { [year]: 2 } }, JSON.parse(meta()));
+  ok(!/Erna|Peter|Geheim/.test(e.sql('SELECT * FROM meta').map((r) => JSON.stringify(r)).join()), 'keine Inhalte in meta');
+  for (let i = 0; i < 3; i++) eq(204, await e.status('POST', '/stats/analog', undefined, null, '10.9.0.1'));
+  eq(429, await e.status('POST', '/stats/analog', undefined, null, '10.9.0.1'), 'sechster Zählversuch am Tag');
+  eq(204, await e.status('POST', '/stats/analog', undefined, null, '10.9.0.2'), 'anderer Anschluss');
+  eq(6, JSON.parse(meta()).total);
+  e.now += 86400 + 1;
+  eq(204, await e.status('POST', '/stats/analog', undefined, null, '10.9.0.1'), 'nächster Tag');
+  // Nur POST
+  eq(404, await e.status('GET', '/stats/analog'));
+  // Admin-Überblick zeigt den Zähler
+  const [, d] = await adminLogin(a);
+  const [st, o] = await e.call('GET', `/admin/${a.slug}/overview`, null, d.session);
+  eq(200, st);
+  eq(7, o.stats.analog.total);
+  // Kaputter Eintrag (z. B. von Hand geändert) wird wie 0 behandelt statt abzustürzen
+  e.sql("UPDATE meta SET value = 'kaputt' WHERE key = 'stat_analog'");
+  eq(204, await e.status('POST', '/stats/analog', undefined, null, '10.9.0.3'));
+  eq(1, JSON.parse(meta()).total);
+});
+
 test23('Widerruf einer Einwilligung: Wunschliste auch nach der Wunschfrist änderbar, nur mit withdraw', async () => {
   const e = await Env.make();
   const [, people] = await drawnRound(e);

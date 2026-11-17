@@ -721,3 +721,74 @@ canvas.snow { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-ev
 .team-members { margin: .25rem 0 .75rem; }
 .team-max { display: inline-flex; align-items: center; gap: .35rem; color: var(--ink-2); font-size: .9rem; }
 .team-max .input-narrow { max-width: 5.5rem; }
+
+/* ---------- 2.7 Analoge Wichtelrunde zum Ausdrucken */
+.mode-link { margin-top: 10px; color: var(--ink); text-decoration: none; border-style: dashed; }
+.mode-link:hover, .mode-link:focus-visible { border-color: var(--fir); }
+.mode-link strong::after { content: " →"; }
+.design-pick { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin: 12px 0; }
+.design-option { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--paper); cursor: pointer; }
+.design-option.is-selected { border-color: var(--fir); box-shadow: 0 0 0 2px color-mix(in srgb, var(--fir) 35%, transparent); }
+.design-option:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.design-option input { accent-color: var(--fir); }
+.analog-decor { width: 100%; max-width: 160px; height: auto; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.analog-decor .stem { stroke: var(--fir-2); stroke-width: 1.6; }
+.analog-decor .needle { stroke: var(--fir-2); stroke-width: 1.2; }
+.analog-decor .berry, .analog-decor .knot { fill: var(--berry); stroke: none; }
+.analog-decor-sterne polygon { fill: none; stroke: var(--gold); stroke-width: 1.2; }
+.analog-decor .band { stroke: var(--berry); stroke-width: 3; }
+.analog-decor .bow { stroke: var(--berry); stroke-width: 1.6; }
+
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body.printing .analog-print { font: 11pt/1.4 var(--font); color: #000; }
+  .analog-print .analog-decor .stem, .analog-print .analog-decor .needle { stroke: #2e5a40; }
+  .analog-print .analog-decor .berry, .analog-print .analog-decor .knot { fill: #b3263e; }
+  .analog-print .analog-decor-sterne polygon { stroke: #b8862b; }
+  .analog-print .analog-decor .band, .analog-print .analog-decor .bow { stroke: #b3263e; }
+
+  /* Verdeckte Lose: 6 je Seite, drei Felder – außen „Los für …“, Mitte der Name, unten die Klappe, die ihn abdeckt */
+  body.printing .analog-slips { display: grid; grid-template-columns: 1fr 1fr; }
+  .slip { height: 90mm; display: grid; grid-template-rows: 1fr 1fr 1fr; border: 0.3mm dotted #777; break-inside: avoid; page-break-inside: avoid; }
+  .slip > div { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2mm 4mm; }
+  .slip p { margin: 0; }
+  .slip-in, .slip-cover { border-top: 0.3mm dashed #777; }
+  .slip-kicker { font-size: 8pt; text-transform: uppercase; letter-spacing: .08em; }
+  .slip-for { font-size: 14pt; font-weight: 700; }
+  .slip-hint { font-size: 8pt; color: #444; }
+  .slip-you { font-size: 9pt; }
+  .slip-receiver { font-size: 15pt; font-weight: 700; }
+  /* Muster auf der Klappe: liegt nach dem Falten über dem Namen und erschwert das Durchscheinen */
+  .slip-cover { background: repeating-linear-gradient(45deg, #9a9a9a 0 1.2mm, #fff 1.2mm 2.4mm); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .slip-cover span { background: #fff; padding: 1mm 2mm; font-size: 7.5pt; color: #333; }
+
+  /* Hut-Zettel: 24 je Seite, oben Deckfeld, unten der Name; in der Mitte falten */
+  body.printing .analog-hut { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .hut-slip { height: 34mm; display: grid; grid-template-rows: 1fr 1fr; border: 0.3mm dotted #777; break-inside: avoid; page-break-inside: avoid; }
+  .hut-cover, .hut-name { display: flex; align-items: center; justify-content: center; text-align: center; padding: 1mm 3mm; }
+  .hut-cover { background: repeating-linear-gradient(-45deg, #b5b5b5 0 1mm, #fff 1mm 2mm); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .hut-cover span { background: #fff; padding: .5mm 2mm; font-size: 7pt; }
+  .hut-name { border-top: 0.3mm dashed #777; font-size: 13pt; font-weight: 700; }
+
+  /* Spielregeln: eine Seite */
+  .analog-rules h1 { font-family: var(--serif); font-size: 22pt; margin: 4mm 0 2mm; }
+  .analog-rules h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+  .analog-rules .analog-decor { max-width: 60mm; display: block; }
+  .analog-rules ol { padding-left: 6mm; }
+  .analog-rules li { margin: 2mm 0; }
+  .rules-facts { font-weight: 700; }
+  .rules-note { font-style: italic; }
+  .rules-names { margin-top: 8mm; font-size: 10pt; }
+
+  /* Karten: 4 je Seite (A6) */
+  body.printing .analog-cards { display: grid; grid-template-columns: 1fr 1fr; }
+  .analog-card { height: 138mm; padding: 8mm; border: 0.3mm dotted #777; break-inside: avoid; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2.5mm; }
+  .analog-card p { margin: 0; }
+  .analog-card .analog-decor { max-width: 55mm; }
+  .analog-card h2 { font-family: var(--serif); font-size: 17pt; margin: 0; }
+  .analog-card-kicker { text-transform: uppercase; letter-spacing: .1em; font-size: 8pt; font-weight: 700; }
+  .analog-card-name { font-size: 12pt; font-weight: 700; }
+  .analog-card-text, .analog-card-facts { font-size: 10pt; }
+  .analog-card-note { font-size: 9pt; font-style: italic; }
+  .analog-card-sterne { border-color: #b8862b; }
+}

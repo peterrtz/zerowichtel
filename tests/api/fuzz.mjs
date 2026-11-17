@@ -29,7 +29,7 @@ const endpoints = [
   ['POST', `/rounds/${rid}/participants/${pid}/remind`], ['PUT', `/rounds/${rid}/participants/${pid}/email`], ['GET', `/rounds/${rid}/keys`],
   ['PUT', `/rounds/${rid}/draw`], ['GET', '/invite'], ['POST', '/invite/claim'], ['GET', '/me'], ['PUT', '/me/rsvp'], ['PUT', '/me/wishes'],
   ['PUT', '/me/recovery'], ['PUT', '/me/notify'], ['DELETE', '/me/email'], ['GET', '/mailbox'], ['PUT', '/mailbox/wish'], ['POST', '/mailbox/messages'],
-  ['POST', '/recover'], ['POST', '/mail/link'], ['GET', `/rounds/${rid}/admin/../keys`], ['OPTIONS', '/info'],
+  ['POST', '/recover'], ['POST', '/mail/link'], ['POST', '/stats/analog'], ['GET', `/rounds/${rid}/admin/../keys`], ['OPTIONS', '/info'],
   ['DELETE', `/rounds/${nid()}`], ['POST', `/admin/${'a'.repeat(26)}/login`], ['GET', '/admin/x'],
   // seit 2.3: Gruppenlink, Rätselhinweise; 2.4: Admin „Anlegen ohne Code“; 2.5: Team-Wichteln
   ['PUT', `/rounds/${rid}/join`], ['DELETE', `/rounds/${rid}/join`], ['GET', '/join'], ['POST', '/join'],

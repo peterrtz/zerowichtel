@@ -201,6 +201,7 @@ async function renderPanel(root) {
       ['Nächste Löschung', st.nextDeletion ? formatDate(st.nextDeletion) : '–'],
       ['Aktive Codes', String(st.activeCodes)],
       ['Runden ohne Code', String(st.roundsWithoutCode ?? 0)],
+      ['Analoge Runden vorbereitet', st.analog ? `${st.analog.total} insgesamt, ${st.analog.years?.[new Date().getFullYear()] ?? 0} in diesem Jahr` : '–'],
       ['Notfallcodes übrig', `${st.recoveryLeft} von 10`],
     ];
     overview.replaceChildren(...[h('h2', null, 'Überblick'),

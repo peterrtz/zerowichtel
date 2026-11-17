@@ -54,7 +54,8 @@ export function renderHome(root) {
       h('p', { class: 'muted' }, t('Keine Konten, keine Passwörter, keine Cookies, kein Tracking.')),
       h('p', { class: 'home-links' },
         h('a', { href: '#demo' }, t('Ziehung ausprobieren – ohne Anmeldung →')), h('br'),
-        h('a', { href: '#wuerfel' }, t('Nur Schrottwichteln würfeln – ganz ohne Runde →'))),
+        h('a', { href: '#wuerfel' }, t('Nur Schrottwichteln würfeln – ganz ohne Runde →')), h('br'),
+        h('a', { href: '#analog' }, t('Analoge Wichtelrunde zum Ausdrucken – ganz ohne Handy →'))),
     ),
   ));
 }

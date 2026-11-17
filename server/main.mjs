@@ -10,6 +10,7 @@
 //   zw backup [--dir <ordner>] [--keep <tage>]     konsistente Sicherung (Standard: data/backup/, alte nach backup_days bzw. 14 Tagen löschen)
 //
 // Konfiguration: config.json (Pfad über ZW_CONFIG). Im Container ist „zw“ = node /app/server/main.mjs.
+import { analogStats } from './stats.mjs';
 import crypto from 'node:crypto';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -87,6 +88,7 @@ function check(config, db) {
   console.log(`Adresse:       ${config.base_url || '– (base_url fehlt)'}`);
   console.log(`E-Mail:        ${mail}`);
   console.log(`Admin-Bereich: ${config.admin.enabled ? 'eingeschaltet' : 'aus'}`);
+  console.log(`Analog:        ${analogStats(db).total} Runde(n) zum Ausdrucken vorbereitet`);
 }
 
 async function main() {
