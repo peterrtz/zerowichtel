@@ -237,7 +237,7 @@ export async function renderPerson(root, pctx) {
     });
     return h('label', { class: 'check gift-check' }, box, h('span', null,
       round.mode === 'wichteln' ? t('Mein Geschenk ist besorgt und verpackt') : t('Mein Geschenk ist gefunden und verpackt'),
-      h('small', { class: 'hint' }, ' ', t('(nur für dich sichtbar)'))));
+      h('small', { class: 'hint' }, t('Nur für dich sichtbar – zum Abhaken, wenn alles erledigt ist.'))));
   })() : null;
 
   mount(root, page(

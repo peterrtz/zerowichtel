@@ -147,7 +147,7 @@ export function timelineSteps(round, now = nowSec(), { gift } = {}) {
   if (round.mode !== 'wichteln') {
     return [
       { label: t('Zusagen'), date: round.rsvpDeadline, done: !open || now >= round.rsvpDeadline },
-      { label: t('Geschenk finden & verpacken'), date: null, done: giftDone, gift: true },
+      { label: t('Geschenk finden'), date: null, done: giftDone, gift: true },
       { label: t('Spieleabend'), date: round.eventDate, done: now >= round.eventDate },
       { label: t('Löschung'), date: round.deleteAfter, done: false },
     ];
@@ -160,7 +160,7 @@ export function timelineSteps(round, now = nowSec(), { gift } = {}) {
     { label: t('Zusagen'), date: earlyDraw ? round.drawnAt : round.rsvpDeadline, done: !open || now >= round.rsvpDeadline },
     { label: t('Auslosen'), date: round.drawnAt ?? null, done: !open },
     { label: t('Wünsche'), date: round.wishDeadline, done: !open && now >= round.wishDeadline },
-    { label: t('Geschenk besorgen & verpacken'), date: null, done: !open && giftDone, gift: true },
+    { label: t('Geschenk besorgen'), date: null, done: !open && giftDone, gift: true },
     { label: t('Bescherung'), date: round.eventDate, done: !open && now >= round.eventDate },
     { label: t('Raten und Danke sagen'), date: after, done: !open && now >= after },
     { label: t('Löschung'), date: round.deleteAfter, done: false },

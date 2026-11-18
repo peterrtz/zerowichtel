@@ -103,7 +103,7 @@ test('2.8: Geschenk-Schritt selbst abhaken; Zusagen-Datum bei früher Auslosung'
   const cur = (r, at, o) => timelineSteps(r, at, o).findIndex((s) => !s.done);
   const drawn = round({ status: 'gezogen', drawnAt: now + DAY });
   const steps = timelineSteps(drawn, now + 2 * DAY, { gift: false });
-  assert.deepEqual(steps.map((s) => s.label), ['Zusagen', 'Auslosen', 'Wünsche', 'Geschenk besorgen & verpacken', 'Bescherung', 'Raten und Danke sagen', 'Löschung']);
+  assert.deepEqual(steps.map((s) => s.label), ['Zusagen', 'Auslosen', 'Wünsche', 'Geschenk besorgen', 'Bescherung', 'Raten und Danke sagen', 'Löschung']);
   assert.equal(cur(drawn, now + 12 * DAY, { gift: false }), 3, 'nach der Wunschfrist: Geschenk');
   assert.equal(cur(drawn, now + 12 * DAY, { gift: true }), 4, 'abgehakt: Bescherung');
   assert.equal(cur(drawn, now + 2 * DAY, { gift: true }), 2, 'früh abgehakt: noch Wünsche');
@@ -117,7 +117,7 @@ test('2.8: Geschenk-Schritt selbst abhaken; Zusagen-Datum bei früher Auslosung'
   assert.equal(timelineSteps(round({ status: 'gezogen', drawnAt: now + 6 * DAY }), now + 7 * DAY)[0].date, now + 5 * DAY);
   // Schrottwichteln: „Geschenk finden“
   const schrott = round({ mode: 'schrott' });
-  assert.deepEqual(timelineSteps(schrott, now, { gift: false }).map((s) => s.label), ['Zusagen', 'Geschenk finden & verpacken', 'Spieleabend', 'Löschung']);
+  assert.deepEqual(timelineSteps(schrott, now, { gift: false }).map((s) => s.label), ['Zusagen', 'Geschenk finden', 'Spieleabend', 'Löschung']);
   assert.equal(cur(schrott, now + 6 * DAY, { gift: false }), 1);
   assert.equal(cur(schrott, now + 6 * DAY, { gift: true }), 2);
 });

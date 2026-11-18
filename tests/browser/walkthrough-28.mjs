@@ -214,7 +214,7 @@ try {
     await waitText(a, 'Mein Geschenk ist besorgt und verpackt');
     const dates = await a.$$eval('.tl-step', (li) => li.map((x) => [x.querySelector('.tl-label').textContent, x.querySelector('.tl-date')?.textContent ?? '']));
     const labels = dates.map((d) => d[0]);
-    if (labels.join('|') !== 'Zusagen|Auslosen|Wünsche|Geschenk besorgen & verpacken|Bescherung|Raten und Danke sagen|Löschung') problems.push(`Zeitleiste: ${labels.join('|')}`);
+    if (labels.join('|') !== 'Zusagen|Auslosen|Wünsche|Geschenk besorgen|Bescherung|Raten und Danke sagen|Löschung') problems.push(`Zeitleiste: ${labels.join('|')}`);
     if (dates[0][1] !== dates[1][1]) problems.push(`Zusagen-Datum ${dates[0][1]} ≠ Auslosung ${dates[1][1]}`);
   });
 
@@ -227,7 +227,14 @@ try {
     await waitText(a, 'Alles erledigt');
     const st = await a.evaluate(() => ({ checked: document.querySelector('.gift-check input').checked, done: [...document.querySelectorAll('.tl-step')].find((x) => x.textContent.includes('Geschenk besorgen')).classList.contains('tl-done') }));
     if (!st.checked || !st.done) problems.push(`Nach Neuladen: ${JSON.stringify(st)}`);
-    await shotCard(a, 'Was jetzt?', 'was-jetzt-erledigt');
+    if (SHOTS) {
+      for (const scheme of ['light', 'dark']) {
+        await a.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
+        const el = (await a.evaluateHandle(() => document.querySelector('.gift-check').closest('.card'))).asElement();
+        await el.screenshot({ path: join(SHOTS, `v28-was-jetzt-${scheme}.png`) });
+      }
+      await a.emulateMediaFeatures([]);
+    }
     await axe(a, 'Teilnehmende: abgehakt');
     const c = pages.Cleo;
     await c.bringToFront();
