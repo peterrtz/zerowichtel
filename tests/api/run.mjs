@@ -13,7 +13,7 @@ const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 /** Funktionen ab 2.3 – nicht in der PHP-Fassung 1.2.1 vorhanden. */
 const test23 = (name, fn) => { if (IMPL !== 'php') tests.push([`2.3: ${name}`, fn]); };
-const SCHEMA = IMPL === 'php' ? 4 : 11;
+const SCHEMA = IMPL === 'php' ? 4 : 12;
 function eq(exp, act, msg = '') {
   if (!isDeepStrictEqual(exp, act)) throw new Error(`${msg ? `${msg}: ` : ''}erwartet ${inspect(exp)}, erhalten ${inspect(act)}`);
 }
@@ -1538,6 +1538,57 @@ test('2.10.1: Wünsche festlegen gibt es beim Team-Wichteln nicht', async () => 
   const e = await Env.make();
   const [, people] = await teamRound(e, 3);
   eq(409, await e.status('PUT', '/me/wishes', { wishCt: ct(), freeze: true }, people[0].auth));
+});
+
+test('2.11: Wichtel-Mixtape – alle Einträge ohne Personenbezug, nur Zusagen, Neu einladen löscht', async () => {
+  const e = await Env.make();
+  const r = await e.round();
+  const people = [];
+  for (let i = 0; i < 4; i++) {
+    const p = await e.person(r);
+    p.auth = await e.claim(p);
+    people.push(p);
+  }
+  const [a, b, c, d] = people;
+  for (const p of [a, b, c]) eq(200, await e.status('PUT', '/me/rsvp', { rsvp: 'dabei' }, p.auth));
+  eq(200, await e.status('PUT', '/me/rsvp', { rsvp: 'raus' }, d.auth));
+  const me = async (p) => (await e.call('GET', '/me', null, p.auth))[1];
+  eq(null, (await me(a)).me.mixCt);
+  eq(0, (await me(a)).mixCts.length);
+  const [ma, mb, mc] = [ct(300), ct(300), ct(300)];
+  eq(204, await e.status('PUT', '/me/mix', { mixCt: ma }, a.auth));
+  eq(204, await e.status('PUT', '/me/mix', { mixCt: mb }, b.auth));
+  // c hat noch nicht zugesagt (offen) → darf eintragen; d ist raus → abgelehnt
+  eq(409, await e.status('PUT', '/me/mix', { mixCt: mc }, d.auth), 'raus');
+  eq(204, await e.status('PUT', '/me/mix', { mixCt: null }, d.auth), 'entfernen geht immer');
+  const va = await me(a);
+  eq(ma, va.me.mixCt, 'eigener Eintrag');
+  eq(JSON.stringify([mb]), JSON.stringify(va.mixCts), 'andere ohne eigenen');
+  const vc = await me(c);
+  eq(JSON.stringify([ma, mb].sort()), JSON.stringify(vc.mixCts), 'sortiert nach Chiffretext, nicht nach Person');
+  ok(!JSON.stringify(vc.mixCts).includes(a.pid) && !JSON.stringify(vc).includes('"mixPid'), 'keine Personen-IDs');
+  // Absage blendet den Eintrag aus, ohne ihn zu löschen
+  eq(200, await e.status('PUT', '/me/rsvp', { rsvp: 'raus' }, b.auth));
+  eq(JSON.stringify([ma]), JSON.stringify((await me(c)).mixCts), 'nur Zusagen');
+  eq(200, await e.status('PUT', '/me/rsvp', { rsvp: 'dabei' }, b.auth));
+  eq(2, (await me(c)).mixCts.length);
+  // Organisator-Ansicht enthält das Mixtape nicht
+  const [, adm] = await e.call('GET', `/rounds/${r.id}/admin`, null, r.admin);
+  ok(!JSON.stringify(adm).includes(ma), 'Mixtape in der Organisator-Ansicht');
+  // Grenzen und Prüfung
+  // 3 Lieder × (100 + 100) Emoji + Name aus 80 Emoji ergeben rund 3800 Zeichen Chiffretext (gemessen: 3801) → muss passen
+  eq(204, await e.status('PUT', '/me/mix', { mixCt: ct(2850) }, a.auth), 'Höchstlänge mit Emoji');
+  eq(400, await e.status('PUT', '/me/mix', { mixCt: ct(3100) }, a.auth), 'zu lang');
+  eq(204, await e.status('PUT', '/me/mix', { mixCt: ma }, a.auth));
+  eq(400, await e.status('PUT', '/me/mix', { mixCt: 'kein-chiffretext' }, a.auth), 'kein Chiffretext');
+  eq(400, await e.status('PUT', '/me/mix', { mixCt: 42 }, a.auth), 'keine Zeichenkette');
+  eq(401, await e.status('PUT', '/me/mix', { mixCt: ma }, r.admin), 'nur mit Personen-Zugang');
+  // Neu einladen löscht den Eintrag
+  eq(200, await e.status('POST', `/rounds/${r.id}/participants/${a.pid}/reinvite`, { inviteHash: h(nid()), inviteCt: ct() }, r.admin));
+  eq(1, e.count('SELECT COUNT(*) FROM participants WHERE mix_ct IS NOT NULL'), 'nur b bleibt');
+  // Runde löschen löscht alles
+  eq(204, await e.status('DELETE', `/rounds/${r.id}`, null, r.admin));
+  eq(0, e.count('SELECT COUNT(*) FROM participants WHERE mix_ct IS NOT NULL'));
 });
 
 test('2.7: Analoge Wichtelrunde – nur ein Zähler, ohne Inhalte, begrenzt je Anschluss und Tag', async () => {

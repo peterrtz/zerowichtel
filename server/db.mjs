@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -247,5 +247,10 @@ const STEPS = [
     'ALTER TABLE participants ADD COLUMN wish_frozen_at INTEGER',
     'ALTER TABLE participants ADD COLUMN wish_unlock_req INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE mailboxes ADD COLUMN wish_frozen_at INTEGER',
+  ],
+  // v12 (2.11): Wichtel-Mixtape. mix_ct = eigene Lieder (K_round, AAD ohne Personen-ID). Alle Zusagenden sehen
+  // die Einträge der anderen ohne Zuordnung (sortiert nach Chiffretext). Nur hinzufügen.
+  [
+    'ALTER TABLE participants ADD COLUMN mix_ct TEXT',
   ],
 ];

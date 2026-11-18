@@ -24,12 +24,12 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.10.1';
+export const VERSION = '2.11.0';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
 // Höchstlängen der Chiffretexte (Base64url-Zeichen)
-const L = { META: 24000, ADMIN: 60000, NAME: 600, INVITE: 600, RECOVERY: 1200, SEALED: 2000, ASSIGN: 12000, WISH: 40000, MESSAGE: 3000, EMAIL_VIEW: 1200, JOIN: 600, HINT: 2000, TEAMS: 8000, TEAM: 400, DONE: 400, QUESTION: 6000, OWN: 6000, ANSWER: 6000 };
+const L = { META: 24000, ADMIN: 60000, NAME: 600, INVITE: 600, RECOVERY: 1200, SEALED: 2000, ASSIGN: 12000, WISH: 40000, MESSAGE: 3000, EMAIL_VIEW: 1200, JOIN: 600, HINT: 2000, TEAMS: 8000, TEAM: 400, DONE: 400, MIX: 4000, QUESTION: 6000, OWN: 6000, ANSWER: 6000 };
 // Rückfragen: 700 Zeichen Text (bis 2100 Byte UTF-8) plus Schlüssel und Rahmen, Base64 → großzügig 6000
 const Q_PER_DAY = 3;         // je Person (mit Namen) bzw. je Anschluss (anonym) und Tag
 const Q_ANON_ROUND_DAY = 20;  // anonyme Fragen je Runde und Tag insgesamt
@@ -151,6 +151,7 @@ export class App {
       r('POST', '/rounds/:id/participants/:id/unfreeze', (q, id, pid) => this.unfreezeWishes(q, id, pid)),
       r('PUT', '/me/team', (q) => this.setOwnTeam(q)),
       r('PUT', '/me/done', (q) => this.setDone(q)),
+      r('PUT', '/me/mix', (q) => this.setMix(q)),
       r('PUT', '/rounds/:id/participants/:id/team', (q, id, pid) => this.setTeam(q, id, pid)),
       r('GET', '/mailbox', (q) => this.mailboxView(q)),
       r('PUT', '/mailbox/wish', (q) => this.mailboxWish(q)),
@@ -664,6 +665,15 @@ export class App {
     return noContent();
   }
 
+  /** Eigene Lieder fürs Wichtel-Mixtape (2.11); null = entfernen. Nur wer dabei ist. */
+  setMix(req) {
+    const [p] = this.personByToken(req, 'p');
+    const mixCt = V.ct(req.body, 'mixCt', L.MIX, true);
+    if (mixCt !== null && p.rsvp === 'raus') throw new HttpError(409, 'not_participating', 'Wer diesmal raus ist, trägt keine Lieder bei.');
+    run(this.db, 'UPDATE participants SET mix_ct = ? WHERE id = ?', mixCt, p.id);
+    return noContent();
+  }
+
   /** Eigener Haken „Geschenk erledigt“ (2.8). Verschlüsselt; nur die Person selbst sieht ihn. null = zurücknehmen. */
   setDone(req) {
     const [p] = this.personByToken(req, 'p');
@@ -697,7 +707,7 @@ export class App {
     const inviteCt = V.ct(req.body, 'inviteCt', L.INVITE);
     tx(this.db, () => {
       run(this.db, `UPDATE participants SET invite_hash = ?, invite_ct = ?, claimed_at = NULL, access_hash = NULL, pubkey = NULL,
-                           rsvp = ?, wish_ct = NULL, assignment_ct = NULL, mailboxkey_ct = NULL, recovery_hash = NULL, recovery_ct = NULL, done_ct = NULL, wish_frozen_at = NULL, wish_unlock_req = 0
+                           rsvp = ?, wish_ct = NULL, assignment_ct = NULL, mailboxkey_ct = NULL, recovery_hash = NULL, recovery_ct = NULL, done_ct = NULL, wish_frozen_at = NULL, wish_unlock_req = 0, mix_ct = NULL
                      WHERE id = ?`, inviteHash, inviteCt, drawn ? person.rsvp : 'offen', pid);
       run(this.db, 'DELETE FROM questions WHERE pid = ?', pid);
       if (drawn) this.resetDraw(roundId);
@@ -1078,7 +1088,11 @@ export class App {
         doneCt: p.done_ct,
         wishFrozenAt: p.wish_frozen_at ?? null,
         unlockRequested: p.wish_unlock_req === 1,
+        mixCt: p.mix_ct ?? null,
       },
+      // Wichtel-Mixtape (2.11): Lieder der anderen Zusagenden – ohne Personen-ID, sortiert nach Chiffretext
+      mixCts: all(this.db, "SELECT mix_ct FROM participants WHERE round_id = ? AND id <> ? AND rsvp = 'dabei' AND mix_ct IS NOT NULL ORDER BY mix_ct", round.id, p.id)
+        .map((x) => x.mix_ct),
       counts: { invited: c.total, dabei: c.dabei ?? 0 },
       // Team-Wichteln: Teamwahlen aller Zusagenden für die Anzahl je Team – mit der zufälligen Personen-ID (an sie ist
       // der Chiffretext gebunden), ohne Namen. Sortiert nach ID, die Reihenfolge verrät nichts.

@@ -29,7 +29,7 @@ const endpoints = [
   ['POST', `/rounds/${rid}/participants/${pid}/remind`], ['PUT', `/rounds/${rid}/participants/${pid}/email`], ['GET', `/rounds/${rid}/keys`],
   ['PUT', `/rounds/${rid}/draw`], ['GET', '/invite'], ['POST', '/invite/claim'], ['GET', '/me'], ['PUT', '/me/rsvp'], ['PUT', '/me/wishes'],
   ['PUT', '/me/recovery'], ['PUT', '/me/notify'], ['DELETE', '/me/email'], ['GET', '/mailbox'], ['PUT', '/mailbox/wish'], ['POST', '/mailbox/messages'],
-  ['POST', '/recover'], ['POST', '/mail/link'], ['POST', '/stats/analog'], ['PUT', '/me/done'], ['GET', '/me/questions'], ['POST', '/me/questions'],
+  ['POST', '/recover'], ['POST', '/mail/link'], ['POST', '/stats/analog'], ['PUT', '/me/done'], ['PUT', '/me/mix'], ['GET', '/me/questions'], ['POST', '/me/questions'],
   ['POST', '/questions/anon'], ['GET', '/questions/thread'], ['PUT', `/rounds/${rid}/questions/settings`], ['GET', `/rounds/${rid}/questions`],
   ['PUT', `/rounds/${rid}/questions/${nid()}/answer`], ['PUT', `/rounds/${rid}/organizer-email`], ['POST', '/me/wishes/unlock-request'], ['POST', `/rounds/${rid}/participants/${pid}/unfreeze`], ['DELETE', `/rounds/${rid}/questions/${nid()}`], ['GET', `/rounds/${rid}/admin/../keys`], ['OPTIONS', '/info'],
   ['DELETE', `/rounds/${nid()}`], ['POST', `/admin/${'a'.repeat(26)}/login`], ['GET', '/admin/x'],

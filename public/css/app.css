@@ -815,3 +815,38 @@ canvas.snow { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-ev
 .char-count { text-align: right; margin-top: 4px; }
 .q-note { margin-bottom: 20px; }
 #rueckfragen .field + .form-actions { margin-top: 8px; }
+
+/* ---------- Wichtel-Mixtape (2.11) ---------- */
+.mix-head { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
+.mix-head p { margin: 0; }
+.mix-cassette { flex: 0 0 auto; width: 132px; height: auto; }
+.mix-cassette .shell { fill: var(--fir); }
+.mix-cassette .label { fill: var(--surface); }
+.mix-cassette .lines { stroke: var(--berry); stroke-width: 3; stroke-linecap: round; fill: none; }
+.mix-cassette .window { fill: var(--surface-2); stroke: var(--ink-2); stroke-width: 1.5; }
+.mix-cassette .reel { fill: var(--surface); stroke: var(--ink-2); stroke-width: 2; }
+.mix-cassette .spokes { stroke: var(--ink-2); stroke-width: 2; stroke-linecap: round; }
+.mix-cassette .base { fill: var(--fir-2); }
+.mix-cassette .hole { fill: var(--paper); }
+.mix-cassette .star { fill: var(--gold); }
+.mix-tracks { list-style: none; margin: 0 0 12px; padding: 0; border-top: 1px solid var(--line); }
+.mix-track { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.mix-no { flex: 0 0 2.4em; font-family: var(--mono); font-weight: 700; color: var(--berry); padding-top: 1px; }
+.mix-main { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.mix-title { font-weight: 600; }
+.mix-artist { color: var(--ink-2); }
+.mix-by { color: var(--fir-2); font-style: italic; }
+.mix-listen { margin-top: 4px; }
+.mix-listen summary { cursor: pointer; color: var(--fir-2); font-size: .92em; width: fit-content; }
+.mix-links { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+.mix-edit { margin-top: 14px; }
+.mix-rows { display: grid; gap: 8px; margin: 12px 0; }
+.mix-row { display: grid; grid-template-columns: 1.6em 1fr 1fr; gap: 8px; align-items: center; }
+.mix-row input { width: 100%; min-width: 0; }
+@media (max-width: 520px) {
+  .mix-head { flex-direction: column; align-items: flex-start; }
+  .mix-cassette { width: 110px; }
+  .mix-row { grid-template-columns: 1.6em 1fr; }
+  .mix-row input + input { grid-column: 2; }
+}
+@media print { .mix-listen, .mix-edit { display: none; } }

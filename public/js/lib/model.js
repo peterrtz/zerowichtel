@@ -5,6 +5,7 @@ import { api, linkBase } from './api.js';
 import { buildLink, buildFragment } from './links.js';
 import { draw as runDraw, verify as verifyDraw, drawTeams, isSingleCycle } from './draw.js';
 import { normalizeAnalog, analogPrecheck, mergeExclusions } from './analog.js';
+import { validateMix, readMix } from './mixtape.js';
 import { normalizeRules, defaultRules } from './rules.js';
 import { cleanUrl, cleanTextUrls } from './cleanurl.js';
 import { t, lang as uiLang } from './i18n.js';
@@ -29,6 +30,7 @@ export const AAD = {
   teams: (r) => ['teams', r],
   team: (r, p) => ['team', r, p],
   done: (r, p) => ['done', r, p],
+  mix: (r) => ['mix', r],
 };
 
 export const TEAM_LIMITS = { name: 30, teams: 30, maxSize: 50 };
@@ -395,6 +397,7 @@ export async function loadMe(pctx) {
     me: data.me,
     counts: data.counts,
     giftDone: await readGiftDone(pctx, r.id, data.me),
+    mix: await readMixes(pctx, r.id, data),
     ...(await teamView(pctx, r, data)),
   };
 }
@@ -407,6 +410,28 @@ async function readGiftDone(pctx, roundId, me) {
   } catch {
     return false;
   }
+}
+
+/** Wichtel-Mixtape (2.11): eigener Eintrag und die der anderen (ohne Zuordnung). Unlesbares wird übersprungen. */
+async function readMixes(pctx, roundId, data) {
+  const open = async (ct) => {
+    try { return readMix(await C.decryptJson(pctx.kRound, ct, AAD.mix(roundId))); } catch { return null; }
+  };
+  const own = data.me.mixCt ? await open(data.me.mixCt) : null;
+  const others = [];
+  for (const ct of data.mixCts ?? []) {
+    const m = await open(ct);
+    if (m?.songs.length) others.push(m);
+  }
+  return { own, others };
+}
+
+/** Eigene Lieder speichern; leer = Eintrag entfernen. by = eigener Name zum Aufdecken (ab der Bescherung). */
+export async function saveMix(pctx, songs, by = null) {
+  const mix = validateMix(songs, by);
+  const mixCt = mix.songs.length ? await C.encryptJson(pctx.kRound, mix, AAD.mix(pctx.roundId)) : null;
+  await api('PUT', '/me/mix', { auth: authP(pctx), body: { mixCt } });
+  return mix;
 }
 
 export async function setGiftDone(pctx, done) {

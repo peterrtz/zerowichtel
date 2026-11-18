@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2.11.0 – 2026-11-18
+
+Datenbankschema 12 (nur ergänzend: `participants.mix_ct`).
+
+- **Wichtel-Mixtape der Runde:** Jede Person trägt bis zu drei Lieblings-Weihnachtslieder ein (Titel, Interpret optional), änderbar bis zur Bescherung. Alle in der Runde sehen eine gemeinsame, gemischte Trackliste im Kassetten-Look (Seite A/B) – ohne Namen. Gleiche Lieder erscheinen einmal mit „von n Personen gewählt“.
+- Ab der Bescherung kann jede Person ihre Lieder aufdecken („aufgedeckt: Name“) und wieder verbergen. Geraten wird beim Wichteln selbst.
+- „Anhören“ zeigt Such-Knöpfe für Qobuz, Spotify, Deezer, Apple Music und YouTube. Nichts wird eingebettet oder vorab geladen; erst beim Klick gehen Titel und Interpret an den gewählten Dienst (ohne Referrer). „Trackliste kopieren“ für die eigene Musik-App.
+- Verschlüsselung mit K_round, bewusst ohne Personenbezug im Chiffretext. Der Server liefert die Einträge der anderen nach Chiffretext sortiert und ohne Personen-ID; nur Einträge von Personen, die dabei sind. Die Organisator:in sieht das Mixtape nicht (wie alle anderen auch nur als Teilnehmende). Neu einladen löscht den Eintrag.
+- Grenzen (bewusst): Der Name beim Aufdecken ist eine eigene Angabe und wird nicht geprüft (wer die Runde kennt, könnte technisch einen fremden Namen eintragen). Wer kurz vor und nach dem Eintragen einer anderen Person neu lädt, kann am neuen Eintrag erkennen, welche Lieder von ihr sind – wie beim Wichteln üblich, bleibt das ein Spiel unter Bekannten.
+
 ## 2.10.1 – 2026-11-18
 
 Datenbankschema 11 (nur ergänzend).

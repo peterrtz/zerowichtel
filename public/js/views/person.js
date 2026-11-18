@@ -9,6 +9,7 @@ import { personDrawSection } from './person-draw.js';
 import { schrottCard } from './game.js';
 import { countdownCard } from './extras.js';
 import { personQuestionsCard, helpButton } from './questions.js';
+import { mixtapeCard } from './mixtape.js';
 import { forgetAnonQuestions } from '../lib/questions.js';
 import { recoveryPng, saveImage } from '../lib/recovery-image.js';
 
@@ -253,6 +254,7 @@ export async function renderPerson(root, pctx) {
     round.status === 'offen' ? rsvpCard : null,
     drawPart,
     personQuestionsCard({ pctx, round }),
+    mixtapeCard({ pctx, data, name, reload }),
     meta.greeting ? card(null, md(meta.greeting)) : null,
     round.mode === 'schrott' && me.rsvp !== 'raus' ? schrottCard({ meta, round, packages: counts.dabei, storageKey: round.id }) : null,
     card(null, factList(round, meta), me.rsvp !== 'raus' ? calendarButton({ round, meta, role: 'person', url: M.jumpLink(pctx.pid) }) : null),
