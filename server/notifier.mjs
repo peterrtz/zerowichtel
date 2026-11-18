@@ -44,6 +44,25 @@ export class Notifier {
         }
       }
 
+      // Antworten auf Rückfragen mit Namen (2.9): einmal je Antwort, nur an die fragende Person
+      const answered = all(this.db, `SELECT q.id, q.pid FROM questions q JOIN participants p ON p.id = q.pid
+                                     WHERE q.round_id = ? AND q.a_ct IS NOT NULL AND q.notified = 0`, r.id);
+      for (const q of answered) {
+        if (sent >= limit) break;
+        const [rec] = this.#recipients(r.id, 'id = ?', q.pid);
+        if (rec) {
+          const [subject, text] = Texts.answerNotice(title, base, del, rec[0], r.lang);
+          try {
+            await this.mailer.send(rec[1], subject, text);
+            sent++;
+          } catch (e) {
+            failed++;
+            console.error(`ZeroWichtel Mail: ${e.message}`);
+          }
+        }
+        run(this.db, 'UPDATE questions SET notified = 1 WHERE id = ?', q.id);
+      }
+
       for (const [flag, val, filter, compose] of jobs) {
         for (const [pid, email] of this.#recipients(r.id, filter)) {
           const [subject, text] = compose(pid);
@@ -63,8 +82,8 @@ export class Notifier {
   }
 
   /** [Personen-ID, entschlüsselte Adresse] aller passenden Empfänger:innen. */
-  #recipients(roundId, filter) {
-    return all(this.db, `SELECT id, email_ct FROM participants WHERE round_id = ? AND email_ct IS NOT NULL AND notify = 1 AND ${filter}`, roundId)
+  #recipients(roundId, filter, ...args) {
+    return all(this.db, `SELECT id, email_ct FROM participants WHERE round_id = ? AND email_ct IS NOT NULL AND notify = 1 AND ${filter}`, roundId, ...args)
       .map((p) => [p.id, this.crypto.open(p.email_ct, `email|${p.id}`)])
       .filter(([, email]) => email !== null);
   }

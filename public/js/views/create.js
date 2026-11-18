@@ -1,6 +1,7 @@
 import { h, field, toast, errorBox, markInvalid } from '../lib/dom.js';
 import { api } from '../lib/api.js';
 import { createRound, adminFragment, LIMITS } from '../lib/model.js';
+import { setQuestionMode } from '../lib/questions.js';
 import { saveLink } from '../lib/store.js';
 import { toDateInput, deadlineFromInput, eventFromInput, formatDate, nowSec } from '../lib/dates.js';
 import { markdownEditor } from '../lib/editor.js';
@@ -104,6 +105,14 @@ export async function renderCreate(root, prefillCode = '') {
     code.addEventListener('input', sync);
     sync();
   }
+  // Rückfragen an die Organisator:in (2.9): Standard aus
+  const qRadios = [[0, t('Aus'), t('Teilnehmende können dir in der App keine Fragen stellen.')], [1, t('Mit Namen'), t('Du siehst, wer fragt, und antwortest in der App.')],
+    [2, t('Mit Namen oder anonym'), t('Zusätzlich können Teilnehmende anonym fragen. Kann missbraucht werden – nur einschalten, wenn es zur Runde passt.')]]
+    .map(([v, label, hint]) => h('label', { class: 'mode-option' }, h('input', { type: 'radio', name: 'qmode-create', value: String(v), checked: v === 0 }),
+      h('span', null, h('strong', null, label), h('small', null, hint))));
+  const questionsCard = card(t('Rückfragen an dich (optional)'),
+    h('p', { class: 'hint' }, t('Teilnehmende können dir über ein Hilfe-Symbol Fragen stellen, etwa wenn sie etwas nicht verstehen. Fragen und Antworten sind verschlüsselt. Du kannst das später in der Verwaltung ändern.')),
+    h('div', { class: 'mode-pick', role: 'radiogroup', 'aria-label': t('Rückfragen an dich') }, qRadios));
   const errSlot = h('div', { id: 'create-errors' });
   const submit = h('button', { type: 'submit', class: 'btn btn-primary btn-large' }, t('Runde anlegen'));
   const form = h('form', { class: 'form', novalidate: true },
@@ -140,6 +149,7 @@ export async function renderCreate(root, prefillCode = '') {
       delInfo,
     ),
     emailCard,
+    questionsCard,
     errSlot,
     h('div', { class: 'form-actions' }, submit, h('a', { class: 'btn btn-ghost', href: '#' }, t('Abbrechen'))),
   );
@@ -184,6 +194,10 @@ export async function renderCreate(root, prefillCode = '') {
         emailEnabled: emailOn.checked,
         mailTitle: mailTitle.value,
       });
+      const qMode = Number(form.querySelector('input[name="qmode-create"]:checked')?.value ?? 0);
+      if (qMode > 0) {
+        try { await setQuestionMode(ctx, qMode); } catch { toast(t('Rückfragen konnten nicht eingeschaltet werden. Du kannst das in der Verwaltung nachholen.'), 'warn'); }
+      }
       const fragment = adminFragment(ctx);
       saveLink({ kind: 'a', roundId: ctx.roundId, fragment, title: title.value.trim(), eventDate: e, confirmed: false });
       sessionStorage.setItem('zw.justCreated', ctx.roundId);

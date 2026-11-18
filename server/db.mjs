@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 9;
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -202,5 +202,32 @@ const STEPS = [
     'ALTER TABLE rounds ADD COLUMN teams_ct TEXT',
     'ALTER TABLE participants ADD COLUMN team_ct TEXT',
     'ALTER TABLE mailboxes ADD COLUMN wish_rev INTEGER NOT NULL DEFAULT 0',
+  ],
+  // v8 (2.8): eigener Haken „Geschenk besorgt/gefunden und verpackt“ (K_round, AAD an die Person gebunden).
+  // Nur die Person selbst bekommt ihn zurück (/me); die Organisator:in sieht ihn nicht. Nur hinzufügen.
+  [
+    'ALTER TABLE participants ADD COLUMN done_ct TEXT',
+  ],
+  // v9 (2.9): Rückfragen an die Organisator:in. q_mode 0 = aus, 1 = mit Namen, 2 = auch anonym.
+  // q_pub = öffentlicher Schlüssel der Organisator:in (im Browser aus K_admin abgeleitet), q_anon_hash = Hash des
+  // gemeinsamen Schlüssels für anonyme Fragen (aus K_round abgeleitet). Fragen sind für q_pub versiegelt, Antworten
+  // mit einem Schlüssel aus der Frage verschlüsselt. Anonyme Fragen: pid NULL, Abruf der Antwort nur mit thread_hash.
+  [
+    'ALTER TABLE rounds ADD COLUMN q_mode INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE rounds ADD COLUMN q_pub TEXT',
+    'ALTER TABLE rounds ADD COLUMN q_anon_hash TEXT',
+    `CREATE TABLE questions (
+        id              TEXT PRIMARY KEY,
+        round_id        TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+        pid             TEXT REFERENCES participants(id) ON DELETE CASCADE,
+        thread_hash     TEXT,
+        q_ct            TEXT NOT NULL,
+        own_ct          TEXT,
+        a_ct            TEXT,
+        day             INTEGER NOT NULL,
+        answer_day      INTEGER,
+        notified        INTEGER NOT NULL DEFAULT 0
+    )`,
+    'CREATE INDEX questions_round ON questions(round_id)',
   ],
 ];

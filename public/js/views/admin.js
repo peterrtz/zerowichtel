@@ -8,6 +8,7 @@ import { t, tn } from '../lib/i18n.js';
 import { page, card, chip, mount, setTitle, loading, notice, roundHeader, factList, md, calendarButton, qrSvg, printInviteCards, timeline } from './common.js';
 import { linkBase } from '../lib/api.js';
 import { adminDrawSection, helperInviteText, helperNameOf } from './admin-draw.js';
+import { adminQuestionsCard } from './questions.js';
 import { schrottCard } from './game.js';
 import { rulesEditor } from './rules-editor.js';
 
@@ -364,6 +365,7 @@ export async function renderAdmin(root, ctx) {
     peopleCard,
     open ? groupLinkCard({ ctx, data, meta, reload }) : null,
     await adminDrawSection({ ctx, data, reload }),
+    adminQuestionsCard({ ctx, data, reload }),
     editCard,
     dangerCard,
   ));

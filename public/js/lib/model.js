@@ -28,6 +28,7 @@ export const AAD = {
   hint: (m, id) => ['hint', m, id],
   teams: (r) => ['teams', r],
   team: (r, p) => ['team', r, p],
+  done: (r, p) => ['done', r, p],
 };
 
 export const TEAM_LIMITS = { name: 30, teams: 30, maxSize: 50 };
@@ -393,8 +394,24 @@ export async function loadMe(pctx) {
     name: await C.decryptJson(pctx.kRound, data.me.nameCt, AAD.name(r.id, data.me.id)),
     me: data.me,
     counts: data.counts,
+    giftDone: await readGiftDone(pctx, r.id, data.me),
     ...(await teamView(pctx, r, data)),
   };
+}
+
+/** Eigener Haken „Geschenk erledigt“ (2.8): verschlüsselt mit K_round, an die Person gebunden; nur sie bekommt ihn. */
+async function readGiftDone(pctx, roundId, me) {
+  if (!me.doneCt) return false;
+  try {
+    return (await C.decryptJson(pctx.kRound, me.doneCt, AAD.done(roundId, me.id))).gift === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function setGiftDone(pctx, done) {
+  const doneCt = done ? await C.encryptJson(pctx.kRound, { v: 1, gift: true }, AAD.done(pctx.roundId, pctx.pid)) : null;
+  return api('PUT', '/me/done', { auth: authP(pctx), body: { doneCt } });
 }
 
 /** Team-Wichteln aus Sicht einer Person: Teamliste, eigenes Team, Mitgliederzahl je Team (ohne Namen). */

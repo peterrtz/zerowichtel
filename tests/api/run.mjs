@@ -13,7 +13,7 @@ const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 /** Funktionen ab 2.3 – nicht in der PHP-Fassung 1.2.1 vorhanden. */
 const test23 = (name, fn) => { if (IMPL !== 'php') tests.push([`2.3: ${name}`, fn]); };
-const SCHEMA = IMPL === 'php' ? 4 : 7;
+const SCHEMA = IMPL === 'php' ? 4 : 9;
 function eq(exp, act, msg = '') {
   if (!isDeepStrictEqual(exp, act)) throw new Error(`${msg ? `${msg}: ` : ''}erwartet ${inspect(exp)}, erhalten ${inspect(act)}`);
 }
@@ -1262,6 +1262,166 @@ test23('Sicherheit 2.5.2: Runden ohne Code verschicken keine Admin-Link-Mails, w
   const key = b64u(crypto.randomBytes(32));
   const tok = withCode.admin.split('.')[2];
   eq(200, await e.status('POST', '/mail/link', { kind: 'admin', link: `https://zw.example/#a/${withCode.id}/${tok}/${key}/${key}`, email: 'ich@example.org' }, withCode.admin));
+});
+
+test('2.8: eigener Haken „Geschenk erledigt“ – nur für die Person selbst, zurückgesetzt bei neuer Ziehung', async () => {
+  const e = await Env.make();
+  const [r, people] = await drawnRound(e);
+  const [a, b] = people;
+  const me = async (p) => (await e.call('GET', '/me', null, p.auth))[1].me;
+  eq(null, (await me(a)).doneCt, 'vorher leer');
+  const done = ct(80);
+  eq(204, await e.status('PUT', '/me/done', { doneCt: done }, a.auth));
+  eq(done, (await me(a)).doneCt);
+  eq(null, (await me(b)).doneCt, 'andere sehen nichts');
+  // Organisator-Ansicht enthält den Haken nicht
+  const [, adm] = await e.call('GET', `/rounds/${r.id}/admin`, null, r.admin);
+  ok(!JSON.stringify(adm).includes(done), 'Haken in der Organisator-Ansicht');
+  // Grenzen und Prüfung
+  eq(400, await e.status('PUT', '/me/done', { doneCt: ct(500) }, a.auth), 'zu lang');
+  eq(400, await e.status('PUT', '/me/done', { doneCt: 'kein-chiffretext' }, a.auth), 'kein Chiffretext');
+  eq(401, await e.status('PUT', '/me/done', { doneCt: done }, r.admin), 'nur mit Personen-Zugang');
+  // zurücknehmen
+  eq(204, await e.status('PUT', '/me/done', { doneCt: null }, a.auth));
+  eq(null, (await me(a)).doneCt);
+  // Neu einladen setzt zurück (und damit die Ziehung)
+  eq(204, await e.status('PUT', '/me/done', { doneCt: done }, b.auth));
+  eq(204, await e.status('PUT', '/me/done', { doneCt: done }, a.auth));
+  eq(200, await e.status('POST', `/rounds/${r.id}/participants/${a.pid}/reinvite`, { inviteHash: h(nid()), inviteCt: ct() }, r.admin));
+  eq(null, (await me(b)).doneCt, 'neue Ziehung nötig → Haken der anderen weg');
+  eq(0, e.count('SELECT COUNT(*) FROM participants WHERE done_ct IS NOT NULL'), 'alle Haken zurückgesetzt');
+});
+
+test('2.9: Rückfragen mit Namen – Freigabe, Begrenzung, Antwort, nur eigene sichtbar, Löschen, Neu einladen', async () => {
+  const e = await Env.make();
+  const [r, people] = await drawnRound(e);
+  const [a, b] = people;
+  const ask = (p, extra = {}) => e.call('POST', '/me/questions', { id: nid(), qCt: ct(300), ownCt: ct(300), ...extra }, p.auth);
+  eq(409, (await ask(a))[0], 'aus: keine Fragen');
+  const pub = b64u(crypto.randomBytes(32));
+  eq(401, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 1, pub }, a.auth), 'nur Organisator:in');
+  eq(400, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 3, pub }, r.admin));
+  eq(400, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 1 }, r.admin), 'ohne Schlüssel');
+  eq(400, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 2, pub }, r.admin), 'anonym ohne Hash');
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 1, pub }, r.admin));
+  const [, mine] = await e.call('GET', '/me', null, a.auth);
+  eq({ mode: 1, pub }, mine.round.questions, 'Teilnehmende bekommen Modus und Schlüssel');
+  const id1 = nid();
+  const [s1, d1] = await ask(a, { id: id1 });
+  eq(201, s1, JSON.stringify(d1));
+  eq(409, (await ask(a, { id: id1 }))[0], 'gleiche ID');
+  eq(400, (await ask(a, { qCt: ct(7000) }))[0], 'zu lang');
+  eq(400, (await ask(a, { ownCt: undefined }))[0], 'ohne eigene Kopie');
+  eq(201, (await ask(a))[0]);
+  eq(201, (await ask(a))[0]);
+  eq(429, (await ask(a))[0], 'vierte am selben Tag');
+  eq(201, (await ask(b))[0], 'andere Person eigenes Kontingent');
+  e.now += DAY;
+  eq(201, (await ask(a))[0], 'am nächsten Tag wieder');
+  const [, list] = await e.call('GET', `/rounds/${r.id}/questions`, null, r.admin);
+  eq(5, list.questions.length);
+  eq(4, list.questions.filter((q) => q.pid === a.pid).length);
+  ok(list.questions.every((q) => !q.anon && typeof q.qCt === 'string' && q.ownCt === undefined), 'Organisator:in sieht Fragen, keine eigenen Kopien');
+  const [, onlyB] = await e.call('GET', '/me/questions', null, b.auth);
+  eq(1, onlyB.questions.length, 'nur eigene Fragen');
+  // Antwort
+  const ans = ct(200);
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/${id1}/answer`, { aCt: ans }, r.admin));
+  eq(404, await e.status('PUT', `/rounds/${r.id}/questions/${nid()}/answer`, { aCt: ans }, r.admin));
+  const [, mineA] = await e.call('GET', '/me/questions', null, a.auth);
+  eq(ans, mineA.questions.find((q) => q.id === id1).aCt);
+  // andere Runde kann nicht antworten
+  const r2 = await e.round();
+  eq(404, await e.status('PUT', `/rounds/${r2.id}/questions/${id1}/answer`, { aCt: ans }, r2.admin));
+  // Abschalten: keine neuen Fragen, bestehende bleiben lesbar
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 0 }, r.admin));
+  eq(409, (await ask(b))[0]);
+  eq(5, (await e.call('GET', `/rounds/${r.id}/questions`, null, r.admin))[1].questions.length);
+  // Löschen
+  eq(204, await e.status('DELETE', `/rounds/${r.id}/questions/${id1}`, null, r.admin));
+  eq(404, await e.status('DELETE', `/rounds/${r.id}/questions/${id1}`, null, r.admin));
+  // Neu einladen entfernt die Fragen der Person (eigene Kopie wäre unlesbar)
+  eq(200, await e.status('POST', `/rounds/${r.id}/participants/${a.pid}/reinvite`, { inviteHash: h(nid()), inviteCt: ct() }, r.admin));
+  eq(0, e.count(`SELECT COUNT(*) FROM questions WHERE pid = '${a.pid}'`));
+  // Runde löschen entfernt alles
+  eq(204, await e.status('DELETE', `/rounds/${r.id}`, null, r.admin));
+  eq(0, e.count('SELECT COUNT(*) FROM questions'));
+});
+
+test('2.9: Anonyme Rückfragen – gemeinsamer Token, kein Personenbezug, Abholtoken, Begrenzung', async () => {
+  const e = await Env.make();
+  const [r, people] = await drawnRound(e);
+  const pub = b64u(crypto.randomBytes(32));
+  const anonTok = nid();
+  const askA = (auth, extra = {}, ip = '10.7.0.1') => e.call('POST', '/questions/anon', { id: nid(), qCt: ct(300), threadHash: h(nid()), ...extra }, auth, ip);
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 1, pub }, r.admin));
+  eq(409, (await askA(`q.${r.id}.${anonTok}`))[0], 'nur mit Namen freigegeben');
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 2, pub, anonHash: h(anonTok) }, r.admin));
+  eq(409, (await askA(`q.${r.id}.${nid()}`))[0], 'falscher Token');
+  eq(401, (await askA(people[0].auth))[0], 'Personen-Zugang wird hier nicht angenommen');
+  const id = nid();
+  const thread = nid();
+  const [s, d] = await askA(`q.${r.id}.${anonTok}`, { id, threadHash: h(thread) });
+  eq(201, s, JSON.stringify(d));
+  eq(1, e.count(`SELECT COUNT(*) FROM questions WHERE id = '${id}' AND pid IS NULL AND own_ct IS NULL`), 'ohne Personenbezug gespeichert');
+  const [, list] = await e.call('GET', `/rounds/${r.id}/questions`, null, r.admin);
+  eq(true, list.questions[0].anon);
+  eq(null, list.questions[0].pid);
+  // Antwort abholen nur mit dem Abholtoken
+  eq(404, await e.status('GET', '/questions/thread', null, `k.${id}.${nid()}`));
+  const [st, t0] = await e.call('GET', '/questions/thread', null, `k.${id}.${thread}`);
+  eq(200, st);
+  eq(null, t0.aCt);
+  const ans = ct(200);
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/${id}/answer`, { aCt: ans }, r.admin));
+  eq(ans, (await e.call('GET', '/questions/thread', null, `k.${id}.${thread}`))[1].aCt);
+  // Fragen mit Namen sind über den Abholweg nicht erreichbar
+  const named = nid();
+  eq(201, (await e.call('POST', '/me/questions', { id: named, qCt: ct(), ownCt: ct() }, people[0].auth))[0]);
+  eq(404, await e.status('GET', '/questions/thread', null, `k.${named}.${nid()}`));
+  // Begrenzung je Anschluss (3 am Tag) und je Runde (20 am Tag)
+  eq(201, (await askA(`q.${r.id}.${anonTok}`))[0]);
+  eq(201, (await askA(`q.${r.id}.${anonTok}`))[0]);
+  eq(429, (await askA(`q.${r.id}.${anonTok}`))[0], 'vierte vom selben Anschluss');
+  for (let i = 0; i < 17; i++) eq(201, (await askA(`q.${r.id}.${anonTok}`, {}, `10.8.${i}.1`))[0]);
+  eq(429, (await askA(`q.${r.id}.${anonTok}`, {}, '10.9.9.9'))[0], 'Runde: 20 am Tag');
+  // Abschalten sperrt anonyme Fragen, gespeicherter Hash bleibt für späteres Einschalten
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 1, pub }, r.admin));
+  e.now += DAY;
+  eq(409, (await askA(`q.${r.id}.${anonTok}`, {}, '10.6.0.1'))[0]);
+  // Rate-Limit-Buckets verschiedener Aktionen desselben Anschlusses sind nicht verknüpfbar
+  const buckets = e.s.sql("SELECT bucket FROM rate_limits").map((x) => x.bucket);
+  const tail = (prefix) => new Set(buckets.filter((b) => b.startsWith(prefix)).map((b) => b.split(':')[1]));
+  const qb = tail('question_anon:');
+  ok(qb.size > 0, 'Bucket für anonyme Fragen vorhanden');
+  for (const x of tail('write:')) ok(!qb.has(x), 'gleicher HMAC in write und question_anon');
+});
+
+test('2.9: Mail bei Antwort – nur an die fragende Person mit Adresse, einmal je Antwort, nie bei anonymen', async () => {
+  const e = await Env.make();
+  const [r, people] = await drawnMailRound(e);
+  const [a, , c] = people;
+  const pub = b64u(crypto.randomBytes(32));
+  const anonTok = nid();
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 2, pub, anonHash: h(anonTok) }, r.admin));
+  await e.s.notify(e.now);
+  const before = e.s.mails().length;
+  const qa = nid();
+  const qc = nid();
+  const qn = nid();
+  eq(201, (await e.call('POST', '/me/questions', { id: qa, qCt: ct(), ownCt: ct() }, a.auth))[0]);
+  eq(201, (await e.call('POST', '/me/questions', { id: qc, qCt: ct(), ownCt: ct() }, c.auth))[0]);
+  eq(201, (await e.call('POST', '/questions/anon', { id: qn, qCt: ct(), threadHash: h(nid()) }, `q.${r.id}.${anonTok}`, '10.7.7.7'))[0]);
+  eq(0, (await e.s.notify(e.now)).sent, 'ohne Antwort keine Mail');
+  for (const q of [qa, qc, qn]) eq(204, await e.status('PUT', `/rounds/${r.id}/questions/${q}/answer`, { aCt: ct() }, r.admin));
+  eq(1, (await e.s.notify(e.now)).sent, 'nur a (c ohne Adresse, anonym nie)');
+  const m = e.s.mails().slice(before);
+  eq(1, m.length);
+  eq('a@example.org', m[0].to);
+  eq('ZeroWichtel: Antwort auf deine Rückfrage – Test', m[0].subject);
+  eq(0, (await e.s.notify(e.now)).sent, 'nur einmal');
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/${qa}/answer`, { aCt: ct() }, r.admin));
+  eq(1, (await e.s.notify(e.now)).sent, 'geänderte Antwort meldet sich erneut');
 });
 
 test('2.7: Analoge Wichtelrunde – nur ein Zähler, ohne Inhalte, begrenzt je Anschluss und Tag', async () => {

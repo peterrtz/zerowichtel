@@ -6,6 +6,8 @@
 //   p.<personId>.<zugangsToken>  Teilnehmende:r
 //   g./r.<postfachId>.<token>    Wichtelpost als Wichtel (g) bzw. Beschenkte:r (r)
 //   x.<sitzungsId>.<token>       Admin-Bereich (nur unter /admin/<geheimer Pfad>/…)
+//   q.<rundenId>.<anonToken>     anonyme Rückfrage stellen (Token aus K_round abgeleitet, für alle in der Runde gleich)
+//   k.<frageId>.<token>          Antwort auf die eigene anonyme Rückfrage abholen
 //
 // Jeder Handler liefert { status, data } (data = null → 204 ohne Inhalt) oder wirft einen HttpError.
 import { Admin } from './admin.mjs';
@@ -22,12 +24,16 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.7.0';
+export const VERSION = '2.9.0';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
 // Höchstlängen der Chiffretexte (Base64url-Zeichen)
-const L = { META: 24000, ADMIN: 60000, NAME: 600, INVITE: 600, RECOVERY: 1200, SEALED: 2000, ASSIGN: 12000, WISH: 40000, MESSAGE: 3000, EMAIL_VIEW: 1200, JOIN: 600, HINT: 2000, TEAMS: 8000, TEAM: 400 };
+const L = { META: 24000, ADMIN: 60000, NAME: 600, INVITE: 600, RECOVERY: 1200, SEALED: 2000, ASSIGN: 12000, WISH: 40000, MESSAGE: 3000, EMAIL_VIEW: 1200, JOIN: 600, HINT: 2000, TEAMS: 8000, TEAM: 400, DONE: 400, QUESTION: 6000, OWN: 6000, ANSWER: 6000 };
+// Rückfragen: 700 Zeichen Text (bis 2100 Byte UTF-8) plus Schlüssel und Rahmen, Base64 → großzügig 6000
+const Q_PER_DAY = 3;         // je Person (mit Namen) bzw. je Anschluss (anonym) und Tag
+const Q_ANON_ROUND_DAY = 20;  // anonyme Fragen je Runde und Tag insgesamt
+const Q_OPEN_MAX = 30;        // gespeicherte Fragen je Person bzw. anonym je Runde
 // ASSIGN: Team-Zuordnung enthält die Namen beider Teams. Gemessen: 50 Personen mit 40 Zeichen à 3 Byte = 9053 Zeichen.
 const MAX_MESSAGES = 100;
 const MAX_HINTS = 5;
@@ -60,6 +66,8 @@ function roundPublic(r) {
     metaCt: r.meta_ct,
     teamsCt: r.teams_ct ?? null,
     lang: r.lang,
+    // Rückfragen (2.9): Modus und öffentlicher Schlüssel der Organisator:in
+    questions: { mode: r.q_mode ?? 0, pub: r.q_mode ? r.q_pub : null },
   };
 }
 
@@ -139,6 +147,7 @@ export class App {
       r('PUT', '/rounds/:id/draw', (q, id) => this.saveDraw(q, id)),
       r('PUT', '/me/wishes', (q) => this.saveWishes(q)),
       r('PUT', '/me/team', (q) => this.setOwnTeam(q)),
+      r('PUT', '/me/done', (q) => this.setDone(q)),
       r('PUT', '/rounds/:id/participants/:id/team', (q, id, pid) => this.setTeam(q, id, pid)),
       r('GET', '/mailbox', (q) => this.mailboxView(q)),
       r('PUT', '/mailbox/wish', (q) => this.mailboxWish(q)),
@@ -160,6 +169,14 @@ export class App {
       r('POST', '/mailbox/hints', (q) => this.addHint(q)),
       r('DELETE', '/mailbox/hints/:id', (q, hid) => this.deleteHint(q, hid)),
       r('POST', '/stats/analog', (q) => this.statsAnalog(q)),
+      r('PUT', '/rounds/:id/questions/settings', (q, id) => this.questionSettings(q, id)),
+      r('GET', '/rounds/:id/questions', (q, id) => this.adminQuestions(q, id)),
+      r('PUT', '/rounds/:id/questions/:id/answer', (q, id, qid) => this.answerQuestion(q, id, qid)),
+      r('DELETE', '/rounds/:id/questions/:id', (q, id, qid) => this.deleteQuestion(q, id, qid)),
+      r('GET', '/me/questions', (q) => this.myQuestions(q)),
+      r('POST', '/me/questions', (q) => this.askNamed(q)),
+      r('POST', '/questions/anon', (q) => this.askAnon(q)),
+      r('GET', '/questions/thread', (q) => this.anonThread(q)),
     ];
   }
 
@@ -212,6 +229,117 @@ export class App {
     throw new HttpError(404, 'not_found', 'Unbekannter Endpunkt.');
   }
 
+  // ------------------------------------------------------------------ Rückfragen an die Organisator:in (2.9)
+
+  /** Ein-/Ausschalten. mode 0 = aus, 1 = mit Namen, 2 = auch anonym. Bestehende Fragen bleiben bei „aus“ lesbar. */
+  questionSettings(req, roundId) {
+    const round = this.adminRound(req, roundId);
+    const b = req.body;
+    const mode = V.int(b, 'mode');
+    if (![0, 1, 2].includes(mode)) fail('mode');
+    const pub = mode ? V.pubkey(b, 'pub') : round.q_pub;
+    // Für anonyme Fragen: Hash des gemeinsamen Tokens. Bleibt gespeichert, damit Ein-/Ausschalten nichts verliert.
+    const anonHash = mode === 2 ? V.hash(b, 'anonHash') : round.q_anon_hash;
+    run(this.db, 'UPDATE rounds SET q_mode = ?, q_pub = ?, q_anon_hash = ? WHERE id = ?', mode, pub, anonHash, round.id);
+    return noContent();
+  }
+
+  adminQuestions(req, roundId) {
+    const round = this.adminRound(req, roundId);
+    return json({
+      questions: all(this.db, 'SELECT id, pid, q_ct, a_ct, day, answer_day FROM questions WHERE round_id = ? ORDER BY rowid', round.id)
+        .map((q) => ({ id: q.id, pid: q.pid, anon: q.pid === null, qCt: q.q_ct, aCt: q.a_ct, day: q.day, answerDay: q.answer_day })),
+    });
+  }
+
+  answerQuestion(req, roundId, qid) {
+    const round = this.adminRound(req, roundId);
+    const aCt = V.ct(req.body, 'aCt', L.ANSWER);
+    const day = Math.floor(this.now() / DAY);
+    // notified = 0: geänderte Antwort meldet sich erneut (nur bei Fragen mit Namen und E-Mail)
+    const { changes } = run(this.db, 'UPDATE questions SET a_ct = ?, answer_day = ?, notified = 0 WHERE id = ? AND round_id = ?', aCt, day, qid, round.id);
+    if (changes !== 1) notFound();
+    return noContent();
+  }
+
+  deleteQuestion(req, roundId, qid) {
+    const round = this.adminRound(req, roundId);
+    const { changes } = run(this.db, 'DELETE FROM questions WHERE id = ? AND round_id = ?', qid, round.id);
+    if (changes !== 1) notFound();
+    return noContent();
+  }
+
+  myQuestions(req) {
+    const [p] = this.personByToken(req, 'p');
+    return json({
+      questions: all(this.db, 'SELECT id, own_ct, a_ct, day, answer_day FROM questions WHERE pid = ? ORDER BY rowid', p.id)
+        .map((q) => ({ id: q.id, ownCt: q.own_ct, aCt: q.a_ct, day: q.day, answerDay: q.answer_day })),
+    });
+  }
+
+  /** Frage mit Namen: an die Person gebunden; ownCt = eigene Kopie (für den eigenen Schlüssel versiegelt). */
+  askNamed(req) {
+    const [p, round] = this.personByToken(req, 'p');
+    if (round.q_mode < 1 || !round.q_pub) throw new HttpError(409, 'questions_off', 'Rückfragen sind in dieser Runde nicht freigegeben.');
+    const b = req.body;
+    const id = V.id(b, 'id');
+    const qCt = V.ct(b, 'qCt', L.QUESTION);
+    const ownCt = V.ct(b, 'ownCt', L.OWN);
+    const day = Math.floor(this.now() / DAY);
+    if (value(this.db, 'SELECT COUNT(*) FROM questions WHERE pid = ? AND day = ?', p.id, day) >= Q_PER_DAY) {
+      throw new HttpError(429, 'questions_today', 'Höchstens 3 Rückfragen am Tag. Morgen geht es wieder.');
+    }
+    if (value(this.db, 'SELECT COUNT(*) FROM questions WHERE pid = ?', p.id) >= Q_OPEN_MAX) {
+      throw new HttpError(409, 'questions_full', 'Es sind schon sehr viele Rückfragen gespeichert. Bitte die Organisator:in, alte zu löschen.');
+    }
+    this.insertQuestion(() => run(this.db, 'INSERT INTO questions (id, round_id, pid, q_ct, own_ct, day) VALUES (?, ?, ?, ?, ?, ?)', id, round.id, p.id, qCt, ownCt, day));
+    return json({ id }, 201);
+  }
+
+  /**
+   * Anonyme Frage: Auth mit dem gemeinsamen Token der Runde (q.<rundenId>.<token>), ohne Personen-Zugang.
+   * Gespeichert wird nur der Hash des Abholtokens; kein Bezug zu einer Person, nur der Tag.
+   */
+  askAnon(req) {
+    const [, rid, token] = this.authParts(req, 'q');
+    const round = one(this.db, 'SELECT * FROM rounds WHERE id = ?', rid);
+    if (!round || round.q_mode !== 2 || !round.q_anon_hash || !safeEqual(round.q_anon_hash, sha256(token))) {
+      throw new HttpError(409, 'questions_off', 'Anonyme Rückfragen sind in dieser Runde nicht freigegeben.');
+    }
+    const b = req.body;
+    const id = V.id(b, 'id');
+    const qCt = V.ct(b, 'qCt', L.QUESTION);
+    const threadHash = V.hash(b, 'threadHash');
+    const now = this.now();
+    const day = Math.floor(now / DAY);
+    this.limiter.hit('question_anon', req.ip, now);
+    if (value(this.db, 'SELECT COUNT(*) FROM questions WHERE round_id = ? AND pid IS NULL AND day = ?', round.id, day) >= Q_ANON_ROUND_DAY) {
+      throw new HttpError(429, 'questions_today', 'Heute sind in dieser Runde schon sehr viele anonyme Rückfragen eingegangen.');
+    }
+    if (value(this.db, 'SELECT COUNT(*) FROM questions WHERE round_id = ? AND pid IS NULL', round.id) >= Q_OPEN_MAX) {
+      throw new HttpError(409, 'questions_full', 'Es sind schon sehr viele anonyme Rückfragen gespeichert. Bitte die Organisator:in, alte zu löschen.');
+    }
+    this.insertQuestion(() => run(this.db, 'INSERT INTO questions (id, round_id, pid, thread_hash, q_ct, day) VALUES (?, ?, NULL, ?, ?, ?)', id, round.id, threadHash, qCt, day));
+    return json({ id }, 201);
+  }
+
+  insertQuestion(fn) {
+    try {
+      fn();
+    } catch (e) {
+      if (isUnique(e)) throw new HttpError(409, 'exists', 'Diese Frage gibt es schon.');
+      throw e;
+    }
+  }
+
+  /** Antwort auf eine anonyme Frage abholen (k.<frageId>.<abholtoken>). */
+  anonThread(req) {
+    const [, qid, token] = this.authParts(req, 'k');
+    const q = one(this.db, 'SELECT * FROM questions WHERE id = ? AND pid IS NULL', qid);
+    if (!q || !safeEqual(q.thread_hash, sha256(token))) notFound();
+    return json({ id: q.id, aCt: q.a_ct, day: q.day, answerDay: q.answer_day });
+  }
+
   /** Analoge Wichtelrunde vorbereitet: nur zählen, keine Inhalte. Begrenzt je Anschluss und Tag. */
   statsAnalog(req) {
     const now = this.now();
@@ -256,7 +384,7 @@ export class App {
 
   /** Zerlegt X-ZW-Auth; roles z. B. 'g|r'. Liefert [Rolle, ID, Token]. */
   authParts(req, roles) {
-    const m = /^([aipgrxj])\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{22})$/.exec(req.auth ?? '');
+    const m = /^([aipgrxjqk])\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{22})$/.exec(req.auth ?? '');
     if (!m || !roles.split('|').includes(m[1])) throw new HttpError(401, 'unauthorized', 'Zugangsdaten fehlen oder sind ungültig.');
     return [m[1], m[2], m[3]];
   }
@@ -507,6 +635,13 @@ export class App {
     return noContent();
   }
 
+  /** Eigener Haken „Geschenk erledigt“ (2.8). Verschlüsselt; nur die Person selbst sieht ihn. null = zurücknehmen. */
+  setDone(req) {
+    const [p] = this.personByToken(req, 'p');
+    run(this.db, 'UPDATE participants SET done_ct = ? WHERE id = ?', V.ct(req.body, 'doneCt', L.DONE, true), p.id);
+    return noContent();
+  }
+
   teamWritable(round) {
     if (round.teams_ct === null) throw new HttpError(409, 'no_teams', 'Diese Runde ist kein Team-Wichteln.');
     if (round.status !== 'offen') throw new HttpError(409, 'wrong_status', 'Nach der Ziehung lassen sich die Teams nicht mehr ändern.');
@@ -533,8 +668,9 @@ export class App {
     const inviteCt = V.ct(req.body, 'inviteCt', L.INVITE);
     tx(this.db, () => {
       run(this.db, `UPDATE participants SET invite_hash = ?, invite_ct = ?, claimed_at = NULL, access_hash = NULL, pubkey = NULL,
-                           rsvp = ?, wish_ct = NULL, assignment_ct = NULL, mailboxkey_ct = NULL, recovery_hash = NULL, recovery_ct = NULL
+                           rsvp = ?, wish_ct = NULL, assignment_ct = NULL, mailboxkey_ct = NULL, recovery_hash = NULL, recovery_ct = NULL, done_ct = NULL
                      WHERE id = ?`, inviteHash, inviteCt, drawn ? person.rsvp : 'offen', pid);
+      run(this.db, 'DELETE FROM questions WHERE pid = ?', pid);
       if (drawn) this.resetDraw(roundId);
     });
     return json({ drawReset: drawn });
@@ -542,7 +678,8 @@ export class App {
 
   resetDraw(roundId) {
     run(this.db, 'DELETE FROM mailboxes WHERE round_id = ?', roundId);
-    run(this.db, 'UPDATE participants SET assignment_ct = NULL, mailboxkey_ct = NULL, draw_seen = 0, draw_reminded = NULL WHERE round_id = ?', roundId);
+    // Neue Ziehung → neue Person zu beschenken: eigener Haken „Geschenk erledigt“ gilt nicht mehr
+    run(this.db, 'UPDATE participants SET assignment_ct = NULL, mailboxkey_ct = NULL, draw_seen = 0, draw_reminded = NULL, done_ct = NULL WHERE round_id = ?', roundId);
     run(this.db, "UPDATE rounds SET status = 'offen', drawn_at = NULL WHERE id = ?", roundId);
   }
 
@@ -864,6 +1001,7 @@ export class App {
         hasEmail: p.email_ct !== null,
         notify: Boolean(p.notify),
         teamCt: p.team_ct,
+        doneCt: p.done_ct,
       },
       counts: { invited: c.total, dabei: c.dabei ?? 0 },
       // Team-Wichteln: Teamwahlen aller Zusagenden für die Anzahl je Team – mit der zufälligen Personen-ID (an sie ist

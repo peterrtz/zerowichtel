@@ -8,10 +8,12 @@ import { page, card, chip, mount, setTitle, loading, notice, roundHeader, factLi
 import { personDrawSection } from './person-draw.js';
 import { schrottCard } from './game.js';
 import { countdownCard } from './extras.js';
+import { personQuestionsCard, helpButton } from './questions.js';
+import { forgetAnonQuestions } from '../lib/questions.js';
 import { recoveryPng, saveImage } from '../lib/recovery-image.js';
 
 /** „Was jetzt?“ – die nächsten Schritte aus Sicht der Teilnehmenden, rein aus Status und Terminen. */
-export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams = null, myTeam = null }) {
+export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams = null, myTeam = null, giftDone = false }) {
   const steps = [];
   const open = round.status === 'offen';
   const wichteln = round.mode === 'wichteln';
@@ -30,13 +32,17 @@ export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams 
       if (!me.wishCt) steps.push(t('Trag deine Wünsche ein (oder „keine Idee“) – bis {date}.', { date: formatDate(round.wishDeadline) }));
       steps.push(t('Warte auf die Ziehung. Danach siehst du hier, wen du beschenkst.'));
     } else {
-      steps.push(t('Komm am {date} zum Spieleabend und bring ein eingepacktes Schrottgeschenk mit.', { date: formatDate(round.eventDate) }));
+      steps.push(giftDone
+        ? t('Dein Geschenk ist gefunden und verpackt. Komm am {date} zum Spieleabend und bring es mit.', { date: formatDate(round.eventDate) })
+        : t('Komm am {date} zum Spieleabend und bring ein eingepacktes Schrottgeschenk mit.', { date: formatDate(round.eventDate) }));
     }
     return steps;
   }
   if (!wichteln) {
     steps.push(now < round.eventDate
-      ? t('Komm am {date} zum Spieleabend und bring ein eingepacktes Schrottgeschenk mit.', { date: formatDate(round.eventDate) })
+      ? (giftDone
+        ? t('Dein Geschenk ist gefunden und verpackt. Komm am {date} zum Spieleabend und bring es mit.', { date: formatDate(round.eventDate) })
+        : t('Komm am {date} zum Spieleabend und bring ein eingepacktes Schrottgeschenk mit.', { date: formatDate(round.eventDate) }))
       : t('Die Runde ist vorbei. Alle Daten werden spätestens am {date} gelöscht.', { date: formatDate(round.deleteAfter) }));
     return steps;
   }
@@ -45,7 +51,14 @@ export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams 
     return steps;
   }
   const after = round.eventDate + 7 * 86400;
-  if (now < round.eventDate && teams) {
+  if (now < round.eventDate && giftDone) {
+    steps.push(t('Alles erledigt: Geschenk besorgt und verpackt. Jetzt nur noch auf die Bescherung am {date} warten.', { date: formatDate(round.eventDate) }));
+    if (now < round.wishDeadline) {
+      steps.push(teams
+        ? t('Euren Team-Wunschzettel könnt ihr noch bis {date} ergänzen.', { date: formatDate(round.wishDeadline) })
+        : t('Deine eigenen Wünsche kannst du noch bis {date} ergänzen.', { date: formatDate(round.wishDeadline) }));
+    }
+  } else if (now < round.eventDate && teams) {
     steps.push(t('Schau unten nach, welches Team ihr beschenkt, und besorgt gemeinsam ein Geschenk bis {date} (Betragslimit: {budget}).', { date: formatDate(round.eventDate), budget: euro(budget) }));
     if (now < round.wishDeadline) steps.push(t('Euren Team-Wunschzettel könnt ihr noch bis {date} ergänzen.', { date: formatDate(round.wishDeadline) }));
     steps.push(t('Unsicher? Fragt das andere Team anonym über die Wichtelpost.'));
@@ -197,24 +210,48 @@ export async function renderPerson(root, pctx) {
       click: () => {
         if (!confirm(t('Link von diesem Gerät entfernen? Die Teilnahme bleibt bestehen. Zurück kommst du nur mit deinem gesicherten Link oder dem Wiederherstellungscode.'))) return;
         removeLink(key);
+        forgetAnonQuestions(round.id);
         location.hash = '';
       },
     },
   }, t('Von diesem Gerät entfernen'));
 
   const drawPart = await personDrawSection({ pctx, data, reload });
-  const steps = nextSteps({ round, me, confirmed, budget: meta.budget, teams: data.teams, myTeam: data.myTeam });
+  const steps = nextSteps({ round, me, confirmed, budget: meta.budget, teams: data.teams, myTeam: data.myTeam, giftDone: data.giftDone });
+  // Eigener Haken „Geschenk erledigt“: Wichteln nach der Ziehung (wer zugelost ist), Schrottwichteln bei Zusage
+  const giftable = nowSec() < round.eventDate && me.rsvp === 'dabei'
+    && (round.mode === 'wichteln' ? round.status === 'gezogen' && !!me.assignmentCt : true);
+  const giftBox = giftable ? (() => {
+    const box = h('input', { type: 'checkbox', checked: data.giftDone });
+    box.addEventListener('change', async () => {
+      box.disabled = true;
+      try {
+        await M.setGiftDone(pctx, box.checked);
+        toast(box.checked ? t('Abgehakt. Schön, dass du schon so weit bist!') : t('Haken entfernt.'), 'ok');
+        reload();
+      } catch (e) {
+        box.checked = !box.checked;
+        box.disabled = false;
+        toast(e.message, 'error');
+      }
+    });
+    return h('label', { class: 'check gift-check' }, box, h('span', null,
+      round.mode === 'wichteln' ? t('Mein Geschenk ist besorgt und verpackt') : t('Mein Geschenk ist gefunden und verpackt'),
+      h('small', { class: 'hint' }, ' ', t('(nur für dich sichtbar)'))));
+  })() : null;
 
   mount(root, page(
     roundHeader(round, meta),
     h('p', { class: 'lead' }, t('Hallo {name}!', { name })),
     justClaimed ? notice(t('Einladung angenommen. Sichere jetzt deinen Zugang, dann sag zu oder ab.'), 'ok') : null,
     justJoined ? notice(t('Du bist eingetragen und dabei. Sichere jetzt deinen Zugang.'), 'ok') : null,
-    card(t('Was jetzt?'), h('ul', { class: 'next-steps' }, steps.map((s) => h('li', null, s))), timeline(round)),
+    card(t('Was jetzt?'), h('ul', { class: 'next-steps' }, steps.map((s) => h('li', null, s))), giftBox, timeline(round, giftable || data.giftDone ? { gift: data.giftDone } : {}),
+      (round.questions?.mode ?? 0) > 0 ? h('p', { class: 'help-row' }, helpButton()) : null),
     me.rsvp !== 'raus' ? countdownCard(round) : null,
     accessSection,
     round.status === 'offen' ? rsvpCard : null,
     drawPart,
+    personQuestionsCard({ pctx, round }),
     meta.greeting ? card(null, md(meta.greeting)) : null,
     round.mode === 'schrott' && me.rsvp !== 'raus' ? schrottCard({ meta, round, packages: counts.dabei, storageKey: round.id }) : null,
     card(null, factList(round, meta), me.rsvp !== 'raus' ? calendarButton({ round, meta, role: 'person', url: M.jumpLink(pctx.pid) }) : null),

@@ -22,14 +22,16 @@ await call('POST', `/rounds/${rid}/participants`, { id: pid, inviteHash: h(inv),
 const acc = nid();
 await call('POST', '/invite/claim', { accessHash: h(acc), pubkey: b64u(crypto.randomBytes(32)), recoveryHash: h('r'), recoveryCt: ct() }, `i.${pid}.${inv}`);
 
-const auths = [null, '', 'x', `a.${rid}.${adminTok}`, `i.${pid}.${inv}`, `p.${pid}.${acc}`, `g.${rid}.${acc}`, `r.${pid}.${adminTok}`, `a.${rid}.${nid()}`, 'a..', 'a'.repeat(5000), `x.${nid()}.${nid()}`];
+const auths = [null, '', 'x', `a.${rid}.${adminTok}`, `i.${pid}.${inv}`, `p.${pid}.${acc}`, `g.${rid}.${acc}`, `r.${pid}.${adminTok}`, `a.${rid}.${nid()}`, 'a..', 'a'.repeat(5000), `x.${nid()}.${nid()}`, `q.${rid}.${nid()}`, `k.${nid()}.${nid()}`];
 const endpoints = [
   ['GET', '/info'], ['POST', '/organizer/check'], ['POST', '/rounds'], ['GET', `/rounds/${rid}/admin`], ['PATCH', `/rounds/${rid}`],
   ['POST', `/rounds/${rid}/participants`], ['PATCH', `/rounds/${rid}/participants/${pid}`], ['POST', `/rounds/${rid}/participants/${pid}/reinvite`],
   ['POST', `/rounds/${rid}/participants/${pid}/remind`], ['PUT', `/rounds/${rid}/participants/${pid}/email`], ['GET', `/rounds/${rid}/keys`],
   ['PUT', `/rounds/${rid}/draw`], ['GET', '/invite'], ['POST', '/invite/claim'], ['GET', '/me'], ['PUT', '/me/rsvp'], ['PUT', '/me/wishes'],
   ['PUT', '/me/recovery'], ['PUT', '/me/notify'], ['DELETE', '/me/email'], ['GET', '/mailbox'], ['PUT', '/mailbox/wish'], ['POST', '/mailbox/messages'],
-  ['POST', '/recover'], ['POST', '/mail/link'], ['POST', '/stats/analog'], ['GET', `/rounds/${rid}/admin/../keys`], ['OPTIONS', '/info'],
+  ['POST', '/recover'], ['POST', '/mail/link'], ['POST', '/stats/analog'], ['PUT', '/me/done'], ['GET', '/me/questions'], ['POST', '/me/questions'],
+  ['POST', '/questions/anon'], ['GET', '/questions/thread'], ['PUT', `/rounds/${rid}/questions/settings`], ['GET', `/rounds/${rid}/questions`],
+  ['PUT', `/rounds/${rid}/questions/${nid()}/answer`], ['DELETE', `/rounds/${rid}/questions/${nid()}`], ['GET', `/rounds/${rid}/admin/../keys`], ['OPTIONS', '/info'],
   ['DELETE', `/rounds/${nid()}`], ['POST', `/admin/${'a'.repeat(26)}/login`], ['GET', '/admin/x'],
   // seit 2.3: Gruppenlink, Rätselhinweise; 2.4: Admin „Anlegen ohne Code“; 2.5: Team-Wichteln
   ['PUT', `/rounds/${rid}/join`], ['DELETE', `/rounds/${rid}/join`], ['GET', '/join'], ['POST', '/join'],

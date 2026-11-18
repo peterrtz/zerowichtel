@@ -792,3 +792,21 @@ canvas.snow { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-ev
   .analog-card-note { font-size: 9pt; font-style: italic; }
   .analog-card-sterne { border-color: #b8862b; }
 }
+
+/* ---------- 2.8 eigener Haken „Geschenk erledigt“ */
+.gift-check { margin: 12px 0 4px; font-weight: 600; }
+.gift-check small { font-weight: 400; }
+.gift-check input { width: 1.25rem; height: 1.25rem; accent-color: var(--fir); flex: none; }
+
+/* ---------- 2.9 Rückfragen an die Organisator:in */
+.help-icon { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; vertical-align: -4px; }
+.help-icon .dot { fill: currentColor; }
+.help-row { margin: 14px 0 0; }
+.help-btn { display: inline-flex; align-items: center; gap: 6px; }
+.card-title-icon { display: inline-flex; align-items: center; gap: 8px; }
+.q-items { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.q-item { border: 1px solid var(--line); border-radius: var(--radius-s); padding: 12px; background: var(--paper); }
+.q-meta { margin: 0 0 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: .9rem; }
+.q-text { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.q-answer { white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid var(--fir); padding-left: 10px; }
+.char-count { text-align: right; margin-top: 4px; }

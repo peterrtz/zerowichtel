@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync, utimesSync, readdirSync, statSync, rmSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { openDb } from '../../server/db.mjs';
+import { openDb, SCHEMA_VERSION } from '../../server/db.mjs';
 import { backup } from '../../server/backup.mjs';
 
 test('Sicherung ist vollständig, nur für den Besitzer lesbar, alte werden rotiert', () => {
@@ -26,7 +26,7 @@ test('Sicherung ist vollständig, nur für den Besitzer lesbar, alte werden roti
     assert.equal(statSync(r.file).mode & 0o777, 0o600);
     const copy = new DatabaseSync(r.file, { readOnly: true });
     assert.equal(copy.prepare("SELECT value FROM meta WHERE key = 'probe'").get().value, 'x');
-    assert.equal(copy.prepare('PRAGMA user_version').get().user_version, 7);
+    assert.equal(copy.prepare('PRAGMA user_version').get().user_version, SCHEMA_VERSION);
     copy.close();
     db.close();
   } finally {

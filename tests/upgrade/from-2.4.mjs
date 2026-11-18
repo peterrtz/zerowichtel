@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import * as NEW from '../api/harness.mjs';
+import { SCHEMA_VERSION } from '../../server/db.mjs';
 
 const OLD_ROOT = process.env.ZW_OLD_ROOT;
 if (!OLD_ROOT) { console.log('ZW_OLD_ROOT nicht gesetzt (Worktree von v2.4.0) – übersprungen.'); process.exit(0); }
@@ -116,11 +117,12 @@ try {
   // 2. Neue Version übernimmt
   s = await NEW.startServer({ dbPath });
   const after = fingerprint(before.cols);
-  assert.equal(after.version, 7, 'Schema 7');
+  assert.equal(after.version, SCHEMA_VERSION, `Schema ${SCHEMA_VERSION}`);
   // rate_limits ausgenommen: Die Startprobe des neuen Servers zählt dort eine Anfrage – Laufzeitdaten, keine Migration.
-  const strip = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'rate_limits'));
+  // Neue Tabellen (z. B. questions ab Schema 9) gab es vorher nicht – verglichen werden die bisherigen.
+  const strip = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'rate_limits' && k in before.out));
   assert.deepEqual(strip(after.out), strip(before.out), 'alle bisherigen Spalten unverändert');
-  step('2.5: Schema 6 → 7, alle bisherigen Daten unverändert (außer dem Zähler der Anfragebegrenzung)');
+  step(`neu: Schema 6 → ${SCHEMA_VERSION}, alle bisherigen Daten unverändert (außer dem Zähler der Anfragebegrenzung)`);
   await checkOldRounds(s, rounds, '2.5');
   step('2.5: alte Runden funktionieren (Zuordnung, Wunschliste, Post, Hinweis, Admin, Wünsche)');
   const call = (m, p, b, a) => s.call(m, p, b, a, { now: T0 + DAY });
@@ -145,7 +147,7 @@ try {
 
   // 3. Rückweg auf 2.4.0
   s = await OLD.startServer({ dbPath });
-  assert.equal(fingerprint().version, 7, 'Schema bleibt 7 (2.4.0 ignoriert die neuen Spalten)');
+  assert.equal(fingerprint().version, SCHEMA_VERSION, `Schema bleibt ${SCHEMA_VERSION} (2.4.0 ignoriert die neuen Spalten und Tabellen)`);
   await checkOldRounds(s, { ...rounds, offen: { ...offen } }, 'Rückweg 2.4.0');
   step('Rückweg auf 2.4.0: Datenbank wird gelesen, alte Runden funktionieren weiter');
   s.stop();

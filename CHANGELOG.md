@@ -1,5 +1,23 @@
 # Änderungen
 
+## 2.9.0 – 2026-11-18
+
+Enthält 2.8 und 2.9; Datenbankschema 9 (v8 und v9, nur ergänzend). Ältere Versionen ab 2.4 laufen auf dem neuen Schema weiter (Rückweg getestet).
+
+**Rückfragen an die Organisator:in (2.9)**
+- Beim Anlegen (und später in der Verwaltung) wählbar: aus (Standard) / mit Namen / mit Namen oder anonym.
+- Teilnehmende sehen einen Hilfe-Knopf unter „Was jetzt?“ und eine Karte „Frage an die Organisator:in“ (höchstens 700 Zeichen) mit dem Hinweis, nichts über die eigene Zuordnung zu schreiben. Die Organisator:in antwortet in der Verwaltung; einzelne Fragen lassen sich löschen.
+- Verschlüsselung: Fragen sind für einen Schlüssel der Organisator:in versiegelt (im Browser aus dem Admin-Schlüssel abgeleitet), Antworten mit einem Schlüssel aus der Frage. Der Server kann beides nicht lesen.
+- Anonym: gesendet ohne Personen-Zugang, mit einem Token, das alle in der Runde haben; gespeichert ohne Personenbezug, nur mit dem Tag. Die Antwort holt nur ab, wer den Abholschlüssel hat – er liegt nur im Browser der fragenden Person.
+- Grenzen: 3 Fragen je Person und Tag (anonym: je Anschluss, dazu höchstens 20 je Runde und Tag), höchstens 30 gespeicherte je Person bzw. anonym je Runde.
+- E-Mail-Modus: Bei einer Antwort auf eine Frage mit Namen bekommt die fragende Person eine Mail ohne Inhalt. Anonyme Fragen lösen nie eine Mail aus.
+- Anfragebegrenzung: Die Zähler verschiedener Aktionen desselben Anschlusses sind jetzt nicht mehr miteinander verknüpfbar (Aktion fließt in den Prüfwert ein). Bestehende Zähler beginnen nach dem Update einmalig neu.
+
+**Geschenk abhaken (2.8)**
+- Neuer Schritt in der Zeitleiste zwischen „Wünsche“ und „Bescherung“: „Geschenk besorgen & verpacken“ (Schrottwichteln: „Geschenk finden & verpacken“). Teilnehmende haken ihn unter „Was jetzt?“ selbst ab; „Was jetzt?“ zeigt dann „Alles erledigt“.
+- Gespeichert verschlüsselt auf dem Server, an die Person gebunden; nur sie bekommt den Haken zurück, die Organisator:in sieht ihn nicht. Neue Auslosung oder neue Einladung setzt ihn zurück.
+- Zeitleiste: Wurde vor der Antwortfrist ausgelost, steht bei „Zusagen“ jetzt der Tag der Auslosung statt der späteren Frist.
+
 ## 2.7.0 – 2026-11-17
 
 Neu: **Analoge Wichtelrunde zum Ausdrucken** – dritte Option neben Wichteln und Schrottwichteln (Startseite und „Neue Runde“, ohne Organisator-Code). Datenbankschema (7) unverändert.

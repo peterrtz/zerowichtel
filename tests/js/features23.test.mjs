@@ -92,10 +92,34 @@ test('Zeitleiste: „Du bist hier“ wandert mit Status und Zeit', () => {
   assert.equal(cur(round(), now + 6 * DAY), 1, 'nach Antwortfrist: Auslosen');
   const drawn = round({ status: 'gezogen', drawnAt: now + DAY });
   assert.equal(cur(drawn, now + 2 * DAY), 2, 'Wünsche');
-  assert.equal(cur(drawn, now + 12 * DAY), 3, 'Bescherung');
-  assert.equal(cur(drawn, now + 21 * DAY), 4, 'Raten und Danke');
-  assert.equal(cur(drawn, now + 28 * DAY), 5, 'Löschung');
-  assert.equal(timelineSteps(round({ mode: 'schrott' }), now).length, 3);
+  // 2.8: Geschenk-Schritt zwischen Wünsche und Bescherung (Organisator-Sicht: erledigt mit dem Wichteltag)
+  assert.equal(cur(drawn, now + 12 * DAY), 3, 'Geschenk besorgen (Organisator-Sicht)');
+  assert.equal(cur(drawn, now + 21 * DAY), 5, 'Raten und Danke');
+  assert.equal(cur(drawn, now + 28 * DAY), 6, 'Löschung');
+  assert.equal(timelineSteps(round({ mode: 'schrott' }), now).length, 4);
+});
+
+test('2.8: Geschenk-Schritt selbst abhaken; Zusagen-Datum bei früher Auslosung', () => {
+  const cur = (r, at, o) => timelineSteps(r, at, o).findIndex((s) => !s.done);
+  const drawn = round({ status: 'gezogen', drawnAt: now + DAY });
+  const steps = timelineSteps(drawn, now + 2 * DAY, { gift: false });
+  assert.deepEqual(steps.map((s) => s.label), ['Zusagen', 'Auslosen', 'Wünsche', 'Geschenk besorgen & verpacken', 'Bescherung', 'Raten und Danke sagen', 'Löschung']);
+  assert.equal(cur(drawn, now + 12 * DAY, { gift: false }), 3, 'nach der Wunschfrist: Geschenk');
+  assert.equal(cur(drawn, now + 12 * DAY, { gift: true }), 4, 'abgehakt: Bescherung');
+  assert.equal(cur(drawn, now + 2 * DAY, { gift: true }), 2, 'früh abgehakt: noch Wünsche');
+  assert.equal(timelineSteps(drawn, now + 2 * DAY, { gift: true })[3].done, true);
+  assert.equal(cur(drawn, now + 21 * DAY, { gift: false }), 5, 'nach dem Wichteltag gilt er als erledigt');
+  // vor der Ziehung nie erledigt, auch nicht mit Haken
+  assert.equal(timelineSteps(round(), now, { gift: true })[3].done, false);
+  // Zusagen: Antwortfrist, außer es wurde vorher ausgelost
+  assert.equal(timelineSteps(round(), now)[0].date, now + 5 * DAY);
+  assert.equal(timelineSteps(drawn, now + 2 * DAY)[0].date, now + DAY);
+  assert.equal(timelineSteps(round({ status: 'gezogen', drawnAt: now + 6 * DAY }), now + 7 * DAY)[0].date, now + 5 * DAY);
+  // Schrottwichteln: „Geschenk finden“
+  const schrott = round({ mode: 'schrott' });
+  assert.deepEqual(timelineSteps(schrott, now, { gift: false }).map((s) => s.label), ['Zusagen', 'Geschenk finden & verpacken', 'Spieleabend', 'Löschung']);
+  assert.equal(cur(schrott, now + 6 * DAY, { gift: false }), 1);
+  assert.equal(cur(schrott, now + 6 * DAY, { gift: true }), 2);
 });
 
 test('Checkliste der Organisator:in', () => {
@@ -124,6 +148,23 @@ test('„Was jetzt?“ für Teilnehmende', () => {
   assert.match(s[0], /Rate, wer dein Wichtel war/);
   s = nextSteps({ round: round(), me: me({ rsvp: 'raus' }), confirmed: true, now, budget: 30 });
   assert.match(s[0], /diesmal raus/);
+});
+
+test('2.8: „Was jetzt?“ nach dem Abhaken', () => {
+  setLang('de');
+  const me = (o) => ({ rsvp: 'dabei', wishCt: 'w', assignmentCt: 'x', ...o });
+  const drawn = round({ status: 'gezogen' });
+  let s = nextSteps({ round: drawn, me: me(), confirmed: true, now: now + 2 * DAY, budget: 30, giftDone: true });
+  assert.match(s[0], /Alles erledigt/);
+  assert.match(s[1], /eigenen Wünsche kannst du noch/);
+  s = nextSteps({ round: drawn, me: me(), confirmed: true, now: now + 12 * DAY, budget: 30, giftDone: true });
+  assert.deepEqual(s.length, 1);
+  s = nextSteps({ round: drawn, me: me(), confirmed: true, now: now + 2 * DAY, budget: 30, giftDone: true, teams: [{ id: 't1' }] });
+  assert.match(s[1], /Team-Wunschzettel/);
+  s = nextSteps({ round: drawn, me: me(), confirmed: true, now: now + 21 * DAY, budget: 30, giftDone: true });
+  assert.match(s[0], /Rate, wer dein Wichtel war/, 'nach dem Wichteltag zählt der Haken nicht mehr');
+  s = nextSteps({ round: round({ mode: 'schrott' }), me: me({ assignmentCt: null }), confirmed: true, now, budget: 30, giftDone: true });
+  assert.match(s[0], /gefunden und verpackt/);
 });
 
 test('Gesundheitsangaben (Art. 9 DSGVO): nur mit Einwilligung, Anzeige und Widerruf', async () => {

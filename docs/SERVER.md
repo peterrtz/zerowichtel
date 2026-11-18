@@ -10,11 +10,11 @@ Der Server ist ein einzelner Node.js-Prozess (≥ 24.7) ohne npm-Pakete. Er lief
 | `server/http.mjs` | HTTP-Server: HTTPS-Weiterleitung, Sicherheitsheader, Anfragekörper (max. 64 KiB), statische Dateien aus dem Speicher (gzip), Weitergabe an die API |
 | `server/app.mjs` | Alle API-Endpunkte; Prüfung von Rechten, Status und Fristen |
 | `server/validate.mjs` | `HttpError`, Eingabeprüfung (`V.id`, `V.ct`, …), JSON-Lesen mit denselben Regeln wie PHP `json_decode` (nur Ganzzahlen, max. 15 Ebenen, gültiges UTF-8) |
-| `server/db.mjs` | SQLite über `node:sqlite`: Pragmas (WAL, `secure_delete`, `foreign_keys`), Schema-Migrationen v1–v7, nur additiv (v5: Gruppenlink, Sprache der Runde, Rätselhinweise; v6: `rounds.without_code`; v7: `rounds.teams_ct`, `participants.team_ct`, `mailboxes.wish_rev`), Transaktionen mit `BEGIN IMMEDIATE` |
+| `server/db.mjs` | SQLite über `node:sqlite`: Pragmas (WAL, `secure_delete`, `foreign_keys`), Schema-Migrationen v1–v9, nur additiv (v5: Gruppenlink, Sprache der Runde, Rätselhinweise; v6: `rounds.without_code`; v7: `rounds.teams_ct`, `participants.team_ct`, `mailboxes.wish_rev`; v8: `participants.done_ct`; v9: `rounds.q_mode`, `q_pub`, `q_anon_hash`, Tabelle `questions`), Transaktionen mit `BEGIN IMMEDIATE` |
 | `server/crypto.mjs` | SHA-256, Zufall, Vergleich in konstanter Zeit, `ServerCrypto` (XChaCha20-Poly1305 = HChaCha20 + ChaCha20-Poly1305, byte-kompatibel mit libsodium), Argon2id im PHC-Format |
 | `server/admin.mjs` | Admin-Bereich: Anmeldung (Passwort + TOTP oder Notfallcode), Sperre, Sitzungen, Codes, Protokoll; TOTP nach RFC 6238 |
 | `server/codes.mjs` | Organisator-Codes (`ZW-XXXX-…`, nur Hash gespeichert) |
-| `server/ratelimit.mjs` | Feste Zeitfenster je Aktion; Bucket = gekürzter HMAC aus IP, Serverschlüssel und Tagesdatum – keine IP-Adressen in der Datenbank |
+| `server/ratelimit.mjs` | Feste Zeitfenster je Aktion; Bucket = gekürzter HMAC aus Aktion und IP mit Serverschlüssel und Tagesdatum – keine IP-Adressen in der Datenbank, Buckets verschiedener Aktionen nicht verknüpfbar (seit 2.9) |
 | `server/cleanup.mjs` | Löschung (Wichteldatum + 14 Tage, verwaiste Runden nach 30 Tagen, alte Codes/Sitzungen/Protokolle), `VACUUM` und WAL-Checkpoint |
 | `server/notifier.mjs` | Erinnerungen im E-Mail-Modus (Antwortfrist, Ziehung, Wunschfrist, Tageshinweis Wichtelpost) – je Runde einmal |
 | `server/email.mjs` | Prüfung von E-Mail-Adressen (Regel aus PHP `filter_var`) |
@@ -82,6 +82,12 @@ IDs und Tokens: 22 Zeichen Base64url (128 Bit). Gespeichert wird nur SHA-256 (he
 | `PUT /rounds/{id}/participants/{pid}/team` | a | Team einer Person setzen (`teamCt`, K_round, AAD an die Person gebunden; `null` = ohne Team); nur offen |
 | `PUT /me/team` | p | eigenes Team wählen; nur offen, nicht bei Absage |
 | `PUT /rounds/{id}/draw` | a | Ziehung; `kind` muss zur Runde passen (`team` ⇔ Teamliste gesetzt). Team: 2 … Teilnehmende Postfächer, Zuordnung bis 12 000 Zeichen |
+| `PUT /me/done` | p | eigener Haken „Geschenk erledigt“ (`doneCt`, K_round, AAD an die Person gebunden; `null` = zurücknehmen). Nur `/me` liefert ihn zurück; zurückgesetzt bei neuer Ziehung und neuer Einladung |
+| `PUT /rounds/{id}/questions/settings` | a | Rückfragen: `{mode: 0\|1\|2, pub, anonHash}` – 1 mit Namen (`pub` = öffentlicher Schlüssel der Organisator:in), 2 auch anonym (`anonHash` = Hash des gemeinsamen Tokens) |
+| `GET /rounds/{id}/questions` · `PUT …/questions/{qid}/answer` · `DELETE …/questions/{qid}` | a | Fragen lesen (`pid` oder `anon`), antworten (`aCt`), löschen |
+| `GET` / `POST /me/questions` | p | eigene Fragen mit Namen (`ownCt`, `aCt`) · Frage stellen `{id, qCt, ownCt}`; 3 je Tag, 30 gespeichert |
+| `POST /questions/anon` | q | anonyme Frage `{id, qCt, threadHash}` ohne Personen-Zugang; 3 je Anschluss und Tag (`rate_limits.question_anon`), 20 je Runde und Tag |
+| `GET /questions/thread` | k | Antwort auf die eigene anonyme Frage (`k.<frageId>.<abholtoken>`) |
 | `POST /stats/analog` | – | Analoge Wichtelrunde vorbereitet: zählt nur (+1 gesamt und im laufenden Jahr), Körper wird ignoriert; höchstens 5 je Anschluss und Tag (`rate_limits.analog`) |
 | `PUT /mailbox/wish` mit `rev` | r | Team-Runden: Pflicht; anderer Stand → 409 `conflict` (atomar). `GET /mailbox` liefert `wishRev`. `withdraw` gilt nur in Personen-Runden |
 

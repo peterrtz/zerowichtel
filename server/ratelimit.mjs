@@ -30,7 +30,9 @@ export class RateLimiter {
     const [max, window] = this.limits[action] ?? [600, 3600];
     const day = new Date(now * 1000).toISOString().slice(0, 10);
     const key = Buffer.concat([this.serverKeyRaw, Buffer.from(`|rl|${day}`)]);
-    const bucket = `${action}:${crypto.createHmac('sha256', key).update(clientKey(ip)).digest('hex').slice(0, 24)}`;
+    // Aktion fließt in den HMAC ein: Buckets verschiedener Aktionen desselben Anschlusses sind nicht verknüpfbar
+    // (wichtig für anonyme Rückfragen, 2.9). Beim Update zählen bestehende Zähler einmalig neu.
+    const bucket = `${action}:${crypto.createHmac('sha256', key).update(`${action}|${clientKey(ip)}`).digest('hex').slice(0, 24)}`;
     const start = now - (now % window);
 
     const hits = tx(this.db, () => {

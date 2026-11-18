@@ -33,6 +33,7 @@ const S = {
       'Bitte öffne deine Seite einmal: Erst dann bekommt dein Wichtel deine Wunschliste.'],
     wishUntil: (d) => `Wünsche kannst du bis zum ${d} ändern.`,
     wish: ['Wunschliste prüfen', (r, d) => `Bei ${r} endet die Wunschfrist am ${d}.`, 'Wenn du noch etwas ergänzen möchtest – oder „keine Idee“ angeben –, öffne deine Seite.'],
+    answer: ['Antwort auf deine Rückfrage', (r) => `In ${r} hat die Organisator:in auf deine Rückfrage geantwortet.`, 'Öffne deine Seite, um die Antwort zu lesen.'],
     digest: ['Neue Wichtelpost', (r) => `In ${r} gibt es neue anonyme Nachrichten.`,
       ['Diese Erinnerung geht an alle in der Runde – sie verrät nicht, wer wem geschrieben hat.', 'Öffne deine Seite, um nachzusehen.']],
   },
@@ -57,6 +58,7 @@ const S = {
       'Please open your page once: only then does your Secret Santa receive your wish list.'],
     wishUntil: (d) => `You can change your wishes until ${d}.`,
     wish: ['Check your wish list', (r, d) => `The wish list deadline for ${r} is ${d}.`, 'If you want to add something – or say “no idea” – open your page.'],
+    answer: ['Reply to your question', (r) => `The organiser of ${r} has replied to your question.`, 'Open your page to read the reply.'],
     digest: ['New Secret Santa mail', (r) => `There are new anonymous messages in ${r}.`,
       ['This reminder goes to everyone in the round – it does not reveal who wrote to whom.', 'Open your page to read them.']],
   },
@@ -112,6 +114,13 @@ export function wishReminder(title, deadline, base, del, pid = null, lang = 'de'
   const t = S[L(lang)];
   const [what, intro, action] = t.wish;
   return mail(t, lang, what, title, [t.hello, '', intro(t.round(title), date(deadline, lang)), action, ...jump(t, base, pid)], base, del);
+}
+
+/** Antwort auf eine Rückfrage mit Namen (2.9) – ohne Frage und Antwort, nur der Hinweis. */
+export function answerNotice(title, base, del, pid = null, lang = 'de') {
+  const t = S[L(lang)];
+  const [what, intro, action] = t.answer;
+  return mail(t, lang, what, title, [t.hello, '', intro(t.round(title)), action, ...jump(t, base, pid)], base, del);
 }
 
 export function digest(title, base, del, pid = null, lang = 'de') {

@@ -139,28 +139,36 @@ export function printInviteCards({ round, meta, cards }) {
 /**
  * Zeitleiste der Runde mit „Du bist hier“. Reine Anzeige aus Status und Terminen.
  */
-export function timelineSteps(round, now = nowSec()) {
+export function timelineSteps(round, now = nowSec(), { gift } = {}) {
   const open = round.status === 'offen';
+  // Geschenk-Schritt: Teilnehmende haken ihn selbst ab (gift = true/false); in der Ansicht der Organisator:in
+  // (gift undefiniert) gilt er mit dem Wichteltag als erledigt. Nach dem Wichteltag immer erledigt.
+  const giftDone = (gift === true) || now >= round.eventDate;
   if (round.mode !== 'wichteln') {
     return [
       { label: t('Zusagen'), date: round.rsvpDeadline, done: !open || now >= round.rsvpDeadline },
+      { label: t('Geschenk finden & verpacken'), date: null, done: giftDone, gift: true },
       { label: t('Spieleabend'), date: round.eventDate, done: now >= round.eventDate },
       { label: t('Löschung'), date: round.deleteAfter, done: false },
     ];
   }
   const after = round.eventDate + 7 * 86400;
+  // Vor der Antwortfrist ausgelost: Bei „Zusagen“ steht dann der Tag der Auslosung (damit endete das Zusagen),
+  // nicht die spätere Frist – sonst stünde „Zusagen 13.11.“ vor „Auslosen 12.11.“.
+  const earlyDraw = !open && round.drawnAt && round.drawnAt < round.rsvpDeadline;
   return [
-    { label: t('Zusagen'), date: round.rsvpDeadline, done: !open || now >= round.rsvpDeadline },
+    { label: t('Zusagen'), date: earlyDraw ? round.drawnAt : round.rsvpDeadline, done: !open || now >= round.rsvpDeadline },
     { label: t('Auslosen'), date: round.drawnAt ?? null, done: !open },
     { label: t('Wünsche'), date: round.wishDeadline, done: !open && now >= round.wishDeadline },
+    { label: t('Geschenk besorgen & verpacken'), date: null, done: !open && giftDone, gift: true },
     { label: t('Bescherung'), date: round.eventDate, done: !open && now >= round.eventDate },
     { label: t('Raten und Danke sagen'), date: after, done: !open && now >= after },
     { label: t('Löschung'), date: round.deleteAfter, done: false },
   ];
 }
 
-export function timeline(round) {
-  const steps = timelineSteps(round);
+export function timeline(round, opts = {}) {
+  const steps = timelineSteps(round, nowSec(), opts);
   const current = steps.findIndex((s) => !s.done);
   return h('ol', { class: 'timeline', 'aria-label': t('Ablauf der Runde') }, steps.map((s, i) => h('li', {
     class: ['tl-step', s.done && 'tl-done', i === current && 'tl-current'],
