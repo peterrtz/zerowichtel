@@ -86,6 +86,8 @@ try {
     await admin.type('input[placeholder^="ZW-"]', srv.organizerCode());
     await admin.type('input[placeholder^="z. B. Familien"]', 'Büroweihnacht');
     await admin.evaluate(() => document.querySelector('input[name="qmode-create"][value="2"]').click());
+    // E-Mail-Modus an, damit die Organisator:in eine Adresse für Hinweise hinterlegen kann (2.10)
+    await admin.evaluate(() => [...document.querySelectorAll('label.check')].find((l) => l.textContent.includes('auch per E-Mail')).querySelector('input').click());
     await axe(admin, 'Anlegen mit Rückfragen');
     await admin.$eval('form.form', (f) => f.requestSubmit());
     await waitText(admin, 'Zuerst: Admin-Link sichern');
@@ -102,6 +104,14 @@ try {
     ])));
     const mode = await admin.evaluate(() => document.querySelector('input[name="qmode"]:checked')?.value);
     if (mode !== '2') problems.push(`Rückfragen-Modus nach dem Anlegen: ${mode}`);
+  });
+
+  await step('2.10: Organisator:in hinterlegt eine Adresse für Hinweise; nach Neuladen wieder angezeigt', async () => {
+    await admin.type('#q-org-email', 'orga@example.org');
+    await admin.evaluate(() => [...document.querySelector('.q-mail').querySelectorAll('button')].find((b) => b.textContent === 'Speichern').click());
+    await waitText(admin, 'Adresse gespeichert.');
+    await admin.reload();
+    await admin.waitForFunction(() => document.querySelector('#q-org-email')?.value === 'orga@example.org', { polling: 100, timeout: 10000 });
   });
 
   const pages = {};

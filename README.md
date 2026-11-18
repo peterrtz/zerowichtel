@@ -7,7 +7,7 @@ Wichteln und Schrottwichteln ohne Konto – als PWA, Ende-zu-Ende-verschlüsselt
 - Die Ziehung läuft im Browser der Organisator:in; jede Zuordnung wird sofort für die jeweilige Person versiegelt.
 - Jede Runde wird spätestens 14 Tage nach dem Wichteldatum endgültig gelöscht.
 
-Version 2.9.0 · Lizenz: [EUPL-1.2](LICENSE)
+Version 2.10.0 · Lizenz: [EUPL-1.2](LICENSE)
 
 Weitere Dokumente: [Installation (Docker + Caddy)](docs/INSTALL-DOCKER-CADDY.md) · [Ohne Docker](docs/INSTALL-OHNE-DOCKER.md) · [Server-Aufbau und API](docs/SERVER.md) · [Sicherheit](docs/SECURITY.md) · [Verarbeitungsverzeichnis und TOM (Entwurf)](docs/DATENSCHUTZ-VVT.md) · [Änderungen](CHANGELOG.md)
 
@@ -25,6 +25,7 @@ Weitere Dokumente: [Installation (Docker + Caddy)](docs/INSTALL-DOCKER-CADDY.md)
 | 2.0 | Server in Node.js (ohne npm-Pakete), gleiche API, Datenübernahme in beide Richtungen geprüft | fertig |
 | 2.3 | Gruppenlink (optional), Checkliste, „Was jetzt?“, Zeitleiste, Einladungskarten, Steckbrief, Tracking-Bereinigung, Päckchen, Rätselhinweise, Raten/Auflösen/Danke, Countdown/Schnee, Ideen-Würfel, Probelauf, englische Oberfläche | fertig |
 | 2.5 | Team-Wichteln: Teams beschenken Teams, Teamwahl durch Teilnehmende, gemeinsamer Team-Wunschzettel; Update- und Rückweg-Test gegen 2.4.0-Daten; Sicherheitsreview R2 | fertig |
+| 2.10 | Optionale Adresse der Organisator:in für Hinweise auf neue Rückfragen (höchstens einmal am Tag, ohne Inhalt) | fertig |
 | 2.9 | Rückfragen an die Organisator:in (mit Antwort, freigegeben beim Anlegen; auf Wunsch auch anonym) | fertig |
 | 2.8 | Eigener Haken „Geschenk besorgen & verpacken“ in der Zeitleiste (Schrottwichteln: „Geschenk finden & verpacken“) | fertig |
 | 2.7 | Analoge Wichtelrunde zum Ausdrucken: Namen eintragen, verdeckte Lose oder Hut-Zettel, Spielregeln, Karten in drei Designs; Daten nur im Browser, auf dem Server nur ein Zähler | fertig |

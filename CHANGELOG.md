@@ -1,5 +1,12 @@
 # Änderungen
 
+## 2.10.0 – 2026-11-18
+
+Datenbankschema 10 (nur ergänzend).
+
+- Die Organisator:in kann unter „Rückfragen“ optional eine E-Mail-Adresse hinterlegen. Bei neuen Rückfragen kommt höchstens einmal am Tag eine Mail – ohne Fragetext, ohne Absender, ohne Link (der Admin-Link wird nie gespeichert). Fragen, die vor dem Hinterlegen gestellt wurden, lösen keinen Hinweis aus.
+- Nur im E-Mail-Modus der Runde. Die Adresse liegt mit dem Serverschlüssel verschlüsselt (nur für den Versand) und zusätzlich mit dem Admin-Schlüssel (Anzeige in der Verwaltung). Feld leeren und speichern löscht sie; E-Mail-Modus aus und Löschen der Runde ebenso.
+
 ## 2.9.0 – 2026-11-18
 
 Enthält 2.8 und 2.9; Datenbankschema 9 (v8 und v9, nur ergänzend). Ältere Versionen ab 2.4 laufen auf dem neuen Schema weiter (Rückweg getestet).

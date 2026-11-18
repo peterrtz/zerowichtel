@@ -13,7 +13,7 @@ const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 /** Funktionen ab 2.3 – nicht in der PHP-Fassung 1.2.1 vorhanden. */
 const test23 = (name, fn) => { if (IMPL !== 'php') tests.push([`2.3: ${name}`, fn]); };
-const SCHEMA = IMPL === 'php' ? 4 : 9;
+const SCHEMA = IMPL === 'php' ? 4 : 10;
 function eq(exp, act, msg = '') {
   if (!isDeepStrictEqual(exp, act)) throw new Error(`${msg ? `${msg}: ` : ''}erwartet ${inspect(exp)}, erhalten ${inspect(act)}`);
 }
@@ -1422,6 +1422,54 @@ test('2.9: Mail bei Antwort – nur an die fragende Person mit Adresse, einmal j
   eq(0, (await e.s.notify(e.now)).sent, 'nur einmal');
   eq(204, await e.status('PUT', `/rounds/${r.id}/questions/${qa}/answer`, { aCt: ct() }, r.admin));
   eq(1, (await e.s.notify(e.now)).sent, 'geänderte Antwort meldet sich erneut');
+});
+
+test('2.10: Hinweis an die Organisator:in – nur im E-Mail-Modus, ohne Inhalt, höchstens einmal am Tag, löschbar', async () => {
+  const e = await Env.make();
+  // ohne E-Mail-Modus abgelehnt
+  const plain = await e.round();
+  eq(409, await e.status('PUT', `/rounds/${plain.id}/organizer-email`, { email: 'orga@example.org', emailViewCt: ct() }, plain.admin));
+  const [r, people] = await drawnMailRound(e);
+  const [a] = people;
+  const pub = b64u(crypto.randomBytes(32));
+  const anonTok = nid();
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 2, pub, anonHash: h(anonTok) }, r.admin));
+  // vor dem Hinterlegen gestellte Frage löst später keinen Hinweis aus
+  eq(201, (await e.call('POST', '/me/questions', { id: nid(), qCt: ct(), ownCt: ct() }, a.auth))[0]);
+  eq(400, await e.status('PUT', `/rounds/${r.id}/organizer-email`, { email: 'kaputt', emailViewCt: ct() }, r.admin));
+  eq(400, await e.status('PUT', `/rounds/${r.id}/organizer-email`, { email: 'orga@example.org' }, r.admin), 'ohne Anzeige-Kopie');
+  eq(401, await e.status('PUT', `/rounds/${r.id}/organizer-email`, { email: 'orga@example.org', emailViewCt: ct() }, a.auth));
+  const view = ct();
+  eq(204, await e.status('PUT', `/rounds/${r.id}/organizer-email`, { email: 'orga@example.org', emailViewCt: view }, r.admin));
+  eq(view, (await e.call('GET', `/rounds/${r.id}/admin`, null, r.admin))[1].round.orgEmailViewCt);
+  ok(!e.s.sql('SELECT org_email_ct FROM rounds').some((x) => String(x.org_email_ct).includes('orga@')), 'Adresse verschlüsselt');
+  ok(!JSON.stringify((await e.call('GET', '/me', null, a.auth))[1]).includes(view), 'Teilnehmende sehen nichts davon');
+  await e.s.notify(e.now);
+  const mark = e.s.mails().length;
+  eq(0, (await e.s.notify(e.now)).sent, 'alte Frage: kein Hinweis');
+  // neue anonyme Frage → ein Hinweis
+  eq(201, (await e.call('POST', '/questions/anon', { id: nid(), qCt: ct(), threadHash: h(nid()) }, `q.${r.id}.${anonTok}`, '10.5.0.1'))[0]);
+  eq(1, (await e.s.notify(e.now)).sent);
+  const m = e.s.mails().slice(mark);
+  eq('orga@example.org', m[0].to);
+  eq('ZeroWichtel: Neue Rückfrage – Test', m[0].subject);
+  ok(!m[0].text.includes('#a/') && !m[0].text.includes('#zu/'), 'kein Link mit oder ohne Geheimnis');
+  // weitere Frage am selben Tag: kein zweiter Hinweis; am nächsten Tag einer
+  eq(201, (await e.call('POST', '/me/questions', { id: nid(), qCt: ct(), ownCt: ct() }, a.auth))[0]);
+  eq(0, (await e.s.notify(e.now)).sent, 'höchstens einmal am Tag');
+  e.now += DAY;
+  eq(1, (await e.s.notify(e.now)).sent, 'nächster Tag');
+  eq(0, (await e.s.notify(e.now)).sent);
+  // löschen
+  eq(204, await e.status('PUT', `/rounds/${r.id}/organizer-email`, { email: null }, r.admin));
+  eq(null, (await e.call('GET', `/rounds/${r.id}/admin`, null, r.admin))[1].round.orgEmailViewCt);
+  eq(201, (await e.call('POST', '/me/questions', { id: nid(), qCt: ct(), ownCt: ct() }, a.auth))[0]);
+  e.now += DAY;
+  eq(0, (await e.s.notify(e.now)).sent, 'ohne Adresse kein Hinweis');
+  // E-Mail-Modus aus löscht die Adresse
+  eq(204, await e.status('PUT', `/rounds/${r.id}/organizer-email`, { email: 'orga@example.org', emailViewCt: view }, r.admin));
+  eq(200, await e.status('PATCH', `/rounds/${r.id}`, { emailEnabled: false }, r.admin));
+  eq(0, e.count(`SELECT COUNT(*) FROM rounds WHERE id = '${r.id}' AND (org_email_ct IS NOT NULL OR org_email_view_ct IS NOT NULL)`));
 });
 
 test('2.7: Analoge Wichtelrunde – nur ein Zähler, ohne Inhalte, begrenzt je Anschluss und Tag', async () => {

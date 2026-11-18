@@ -24,7 +24,7 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.9.0';
+export const VERSION = '2.10.0';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
@@ -171,6 +171,7 @@ export class App {
       r('POST', '/stats/analog', (q) => this.statsAnalog(q)),
       r('PUT', '/rounds/:id/questions/settings', (q, id) => this.questionSettings(q, id)),
       r('GET', '/rounds/:id/questions', (q, id) => this.adminQuestions(q, id)),
+      r('PUT', '/rounds/:id/organizer-email', (q, id) => this.setOrganizerEmail(q, id)),
       r('PUT', '/rounds/:id/questions/:id/answer', (q, id, qid) => this.answerQuestion(q, id, qid)),
       r('DELETE', '/rounds/:id/questions/:id', (q, id, qid) => this.deleteQuestion(q, id, qid)),
       r('GET', '/me/questions', (q) => this.myQuestions(q)),
@@ -241,6 +242,28 @@ export class App {
     // Für anonyme Fragen: Hash des gemeinsamen Tokens. Bleibt gespeichert, damit Ein-/Ausschalten nichts verliert.
     const anonHash = mode === 2 ? V.hash(b, 'anonHash') : round.q_anon_hash;
     run(this.db, 'UPDATE rounds SET q_mode = ?, q_pub = ?, q_anon_hash = ? WHERE id = ?', mode, pub, anonHash, round.id);
+    return noContent();
+  }
+
+  /**
+   * Adresse der Organisator:in für Hinweise auf neue Rückfragen (2.10). Nur im E-Mail-Modus; null/'' = löschen.
+   * Neu gesetzt: gilt nur für Fragen ab jetzt (keine Nachmeldung älterer).
+   */
+  setOrganizerEmail(req, roundId) {
+    const round = this.adminRound(req, roundId);
+    const b = req.body;
+    const raw = get(b, 'email');
+    if (raw === null || raw === '') {
+      run(this.db, 'UPDATE rounds SET org_email_ct = NULL, org_email_view_ct = NULL WHERE id = ?', round.id);
+      return noContent();
+    }
+    if (!this.mailer || !round.email_enabled) throw new HttpError(409, 'email_disabled', 'Für diese Runde ist der E-Mail-Modus nicht eingeschaltet.');
+    const email = validEmail(raw);
+    if (email === null) fail('email');
+    const view = V.ct(b, 'emailViewCt', L.EMAIL_VIEW);
+    const last = value(this.db, 'SELECT COALESCE(MAX(rowid), 0) FROM questions WHERE round_id = ?', round.id);
+    run(this.db, 'UPDATE rounds SET org_email_ct = ?, org_email_view_ct = ?, q_notified_rowid = MAX(q_notified_rowid, ?) WHERE id = ?',
+      this.sc.seal(email, `orgemail|${round.id}`), view, last, round.id);
     return noContent();
   }
 
@@ -517,7 +540,7 @@ export class App {
       ? { ct: round.join_ct, until: round.join_until, max: round.join_max, used: round.join_used }
       : null;
     return json({
-      round: { ...roundPublic(round), adminCt: round.admin_ct, mailTitle: this.mailTitle(round), join },
+      round: { ...roundPublic(round), adminCt: round.admin_ct, mailTitle: this.mailTitle(round), join, orgEmailViewCt: round.org_email_ct !== null ? round.org_email_view_ct : null },
       participants: people,
       maxParticipants: this.config.max_participants,
       // Runden ohne Code: E-Mail nur, wenn im Admin-Bereich erlaubt (bereits eingeschaltete bleiben bedienbar)
@@ -574,6 +597,7 @@ export class App {
     if (get(b, 'emailEnabled') === false) {
       // Datensparsamkeit: E-Mail-Modus aus = alle Adressen der Runde löschen
       run(this.db, 'UPDATE participants SET email_ct = NULL, email_view_ct = NULL WHERE round_id = ?', roundId);
+      run(this.db, 'UPDATE rounds SET org_email_ct = NULL, org_email_view_ct = NULL WHERE id = ?', roundId);
     }
     return json({ round: roundPublic(one(this.db, 'SELECT * FROM rounds WHERE id = ?', roundId)) });
   }

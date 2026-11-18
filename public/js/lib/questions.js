@@ -10,6 +10,7 @@
 import * as C from './crypto.js';
 import { api } from './api.js';
 import { t } from './i18n.js';
+import { validateEmail } from './model.js';
 
 export const QUESTION_MAX = 700;
 export const QUESTION_STORE = 'zw.anonQuestions.v1';
@@ -17,6 +18,7 @@ export const Q_AAD = {
   q: (r, id) => ['q', r, id],
   own: (r, id) => ['qown', r, id],
   a: (r, id) => ['qa', r, id],
+  orgEmail: (r) => ['orgemail', r],
 };
 
 const chars = (s) => [...s].length;
@@ -46,6 +48,23 @@ export async function setQuestionMode(ctx, mode) {
   if (mode >= 1) body.pub = (await organizerKeypair(ctx.kAdmin)).publicB64;
   if (mode === 2) body.anonHash = await C.tokenHash(await anonToken(ctx.kRound));
   return api('PUT', `/rounds/${ctx.roundId}/questions/settings`, { auth: authA(ctx), body });
+}
+
+/** Adresse der Organisator:in für Hinweise (2.10); leer = löschen. Anzeige-Kopie mit K_admin. */
+export async function setOrganizerEmail(ctx, email) {
+  const e = validateEmail(email);
+  if (!e) return api('PUT', `/rounds/${ctx.roundId}/organizer-email`, { auth: authA(ctx), body: { email: null } });
+  const emailViewCt = await C.encryptJson(ctx.kAdmin, e, Q_AAD.orgEmail(ctx.roundId));
+  return api('PUT', `/rounds/${ctx.roundId}/organizer-email`, { auth: authA(ctx), body: { email: e, emailViewCt } });
+}
+
+export async function organizerEmail(ctx, round) {
+  if (!round.orgEmailViewCt) return null;
+  try {
+    return await C.decryptJson(ctx.kAdmin, round.orgEmailViewCt, Q_AAD.orgEmail(ctx.roundId));
+  } catch {
+    return null;
+  }
 }
 
 export async function loadAdminQuestions(ctx) {

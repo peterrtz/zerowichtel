@@ -1105,6 +1105,10 @@ export const EN = {
   "Heute sind in dieser Runde schon sehr viele anonyme Rückfragen eingegangen.": "This round has already received a lot of anonymous questions today.",
   "Es sind schon sehr viele anonyme Rückfragen gespeichert. Bitte die Organisator:in, alte zu löschen.": "There are already a lot of stored anonymous questions. Ask the organiser to delete old ones.",
   "Diese Frage gibt es schon.": "This question already exists.",
+  // 2.10 – Hinweis an die Organisator:in
+  "Hinweis per E-Mail an mich (optional)": "Email notice to me (optional)",
+  "Bei neuen Rückfragen bekommst du höchstens einmal am Tag eine Mail ohne Inhalt und ohne Absender. Die Adresse liegt verschlüsselt auf dem Server und wird mit der Runde gelöscht. Feld leeren und speichern = Adresse entfernen.": "For new questions you get at most one email a day, without content and without the sender. The address is stored encrypted on the server and deleted with the round. Clear the field and save to remove the address.",
+  "Hinweise per E-Mail auf neue Rückfragen gibt es nur, wenn der E-Mail-Modus der Runde eingeschaltet ist.": "Email notices about new questions are only available if the round’s email mode is on.",
 };
 
 /** Server-Meldungen mit eingesetzten Werten (Zahlen, Feldnamen). */

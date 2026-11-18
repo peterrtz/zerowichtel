@@ -158,11 +158,33 @@ export function adminQuestionsCard({ ctx, data, reload }) {
     })));
   };
 
+  // Hinweis per E-Mail an die Organisator:in (2.10)
+  const mailPart = h('div', { class: 'q-mail' });
+  if (mode > 0) {
+    if (round.emailEnabled && data.emailAvailable) {
+      const input = h('input', { type: 'email', id: 'q-org-email', maxlength: 254, autocomplete: 'email', inputmode: 'email', placeholder: t('deine@adresse.de') });
+      Q.organizerEmail(ctx, round).then((e) => { if (e) input.value = e; });
+      add(mailPart,
+        h('div', { class: 'field' }, h('label', { for: 'q-org-email' }, t('Hinweis per E-Mail an mich (optional)')),
+          h('div', { class: 'inline-form' }, input,
+            actionButton(t('Speichern'), async () => {
+              try {
+                await Q.setOrganizerEmail(ctx, input.value);
+                toast(input.value.trim() ? t('Adresse gespeichert.') : t('Adresse entfernt.'), 'ok');
+              } catch (e) { toast(e.message, 'error'); }
+            }, { cls: 'btn' })),
+          h('p', { class: 'hint' }, t('Bei neuen Rückfragen bekommst du höchstens einmal am Tag eine Mail ohne Inhalt und ohne Absender. Die Adresse liegt verschlüsselt auf dem Server und wird mit der Runde gelöscht. Feld leeren und speichern = Adresse entfernen.'))));
+    } else {
+      add(mailPart, h('p', { class: 'hint' }, t('Hinweise per E-Mail auf neue Rückfragen gibt es nur, wenn der E-Mail-Modus der Runde eingeschaltet ist.')));
+    }
+  }
+
   add(body,
     h('p', null, t('Teilnehmende können dir Fragen stellen, etwa wenn sie Hilfe brauchen oder etwas nicht verstehen. Fragen und Antworten sind verschlüsselt; der Server kann sie nicht lesen.')),
     h('div', { class: 'mode-pick', role: 'radiogroup', 'aria-label': t('Rückfragen') }, radios),
     h('p', { class: 'hint' }, t('Anonym: Du siehst nicht, von wem eine Frage kommt. Das kann missbraucht werden, etwa für unfreundliche Nachrichten – schalte es nur ein, wenn es zur Runde passt. Du kannst einzelne Fragen löschen und Rückfragen jederzeit abschalten.')),
     h('div', { class: 'form-actions' }, saveMode),
+    mailPart,
     list);
   renderList();
   return h('details', { class: 'card rules-card', id: 'rueckfragen-admin', open: mode > 0 }, summary, body);

@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -229,5 +229,14 @@ const STEPS = [
         notified        INTEGER NOT NULL DEFAULT 0
     )`,
     'CREATE INDEX questions_round ON questions(round_id)',
+  ],
+  // v10 (2.10): optionale Adresse der Organisator:in für Hinweise auf neue Rückfragen. org_email_ct mit dem
+  // Serverschlüssel (nur für den Versand), org_email_view_ct mit K_admin (Anzeige in der Verwaltung).
+  // q_notified_rowid/q_notified_day: höchstens ein Hinweis am Tag, nur für neue Fragen. Nur hinzufügen.
+  [
+    'ALTER TABLE rounds ADD COLUMN org_email_ct TEXT',
+    'ALTER TABLE rounds ADD COLUMN org_email_view_ct TEXT',
+    'ALTER TABLE rounds ADD COLUMN q_notified_rowid INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE rounds ADD COLUMN q_notified_day INTEGER NOT NULL DEFAULT 0',
   ],
 ];

@@ -44,6 +44,26 @@ export class Notifier {
         }
       }
 
+      // Neue Rückfragen an die Organisator:in (2.10): höchstens ein Hinweis am Tag, nur wenn eine Adresse hinterlegt ist
+      if (r.org_email_ct) {
+        const maxQ = value(this.db, 'SELECT COALESCE(MAX(rowid), 0) FROM questions WHERE round_id = ?', r.id);
+        const today = Math.floor(now / 86400);
+        if (maxQ > r.q_notified_rowid && today > r.q_notified_day && sent < limit) {
+          const to = this.crypto.open(r.org_email_ct, `orgemail|${r.id}`);
+          if (to) {
+            const [subject, text] = Texts.questionNotice(title, base, del, r.lang);
+            try {
+              await this.mailer.send(to, subject, text);
+              sent++;
+            } catch (e) {
+              failed++;
+              console.error(`ZeroWichtel Mail: ${e.message}`);
+            }
+          }
+          run(this.db, 'UPDATE rounds SET q_notified_rowid = ?, q_notified_day = ? WHERE id = ?', maxQ, today, r.id);
+        }
+      }
+
       // Antworten auf Rückfragen mit Namen (2.9): einmal je Antwort, nur an die fragende Person
       const answered = all(this.db, `SELECT q.id, q.pid FROM questions q JOIN participants p ON p.id = q.pid
                                      WHERE q.round_id = ? AND q.a_ct IS NOT NULL AND q.notified = 0`, r.id);
