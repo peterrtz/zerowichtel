@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -238,5 +238,14 @@ const STEPS = [
     'ALTER TABLE rounds ADD COLUMN org_email_view_ct TEXT',
     'ALTER TABLE rounds ADD COLUMN q_notified_rowid INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE rounds ADD COLUMN q_notified_day INTEGER NOT NULL DEFAULT 0',
+  ],
+  // v11 (2.11): Wünsche vor der Frist festlegen. participants.wish_frozen_at = Zeitpunkt der Festlegung (danach
+  // 24 h Korrektur, dann gesperrt bis zur Freigabe durch die Organisator:in); wish_unlock_req = Bitte um Freigabe.
+  // mailboxes.wish_frozen_at = dasselbe für die Kopie beim Wichtel (der Server kennt die Zuordnung Person ↔ Postfach
+  // nicht; die App der beschenkten Person überträgt die Festlegung). Nur hinzufügen.
+  [
+    'ALTER TABLE participants ADD COLUMN wish_frozen_at INTEGER',
+    'ALTER TABLE participants ADD COLUMN wish_unlock_req INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE mailboxes ADD COLUMN wish_frozen_at INTEGER',
   ],
 ];

@@ -813,3 +813,5 @@ canvas.snow { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-ev
 .q-text { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .q-answer { white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid var(--fir); padding-left: 10px; }
 .char-count { text-align: right; margin-top: 4px; }
+.q-note { margin-bottom: 20px; }
+#rueckfragen .field + .form-actions { margin-top: 8px; }

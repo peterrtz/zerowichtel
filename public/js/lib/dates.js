@@ -32,7 +32,9 @@ const fmts = new Map();
 function fmt(kind) {
   const key = `${locale()}|${kind}`;
   if (!fmts.has(key)) {
-    const opts = kind === 'long' ? { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' } : { day: 'numeric', month: 'long' };
+    const opts = kind === 'long' ? { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }
+      : kind === 'time' ? { weekday: 'short', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }
+        : { day: 'numeric', month: 'long' };
     fmts.set(key, new Intl.DateTimeFormat(locale(), opts));
   }
   return fmts.get(key);
@@ -44,6 +46,11 @@ export function formatDate(ts) {
 
 export function formatShort(ts) {
   return ts ? fmt('short').format(new Date(ts * 1000)) : '–';
+}
+
+/** Tag und Uhrzeit, z. B. „Do., 19. November, 14:05“ (2.11: Ende der Korrekturzeit). */
+export function formatDateTime(ts) {
+  return ts ? fmt('time').format(new Date(ts * 1000)) : '–';
 }
 
 export function nowSec() {

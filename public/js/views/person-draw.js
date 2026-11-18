@@ -4,7 +4,7 @@
 import { h, add, clear, toast, actionButton, field } from '../lib/dom.js';
 import * as M from '../lib/model.js';
 import { markdownEditor } from '../lib/editor.js';
-import { formatDate, formatShort, nowSec, relative, euro, toDateInput } from '../lib/dates.js';
+import { formatDate, formatShort, formatDateTime, nowSec, relative, euro, toDateInput } from '../lib/dates.js';
 import { t, tn } from '../lib/i18n.js';
 import { card, chip, md, notice } from './common.js';
 import { revealBox, ideaDice } from './extras.js';
@@ -17,7 +17,18 @@ function profileView(raw) {
   return rows.length ? h('dl', { class: 'facts profile' }, rows) : null;
 }
 
-export function wishView(wish, { team = false } = {}) {
+const FREEZE_GRACE = 86400; // 24 h Korrekturzeit nach dem Festlegen (2.11)
+
+/** Hinweis für den Wichtel: Wünsche festgelegt (endgültig bzw. Korrekturen noch bis …). */
+function frozenNote(frozenAt) {
+  if (!frozenAt) return null;
+  const until = frozenAt + FREEZE_GRACE;
+  return h('p', { class: 'wish-frozen' }, chip(t('Festgelegt'), 'ok'), ' ', nowSec() < until
+    ? t('Deine Person hat ihre Wünsche festgelegt; kleine Korrekturen sind noch bis {date} möglich.', { date: formatDateTime(until) })
+    : t('Deine Person hat ihre Wünsche am {date} festgelegt – sie ändern sich nicht mehr. Du kannst schon loslegen.', { date: formatShort(frozenAt) }));
+}
+
+export function wishView(wish, { team = false, frozenAt = null } = {}) {
   if (!wish) {
     return notice(team
       ? t('Das Team hat noch keinen Wunschzettel geschrieben. Fragt ruhig über die Wichtelpost nach.')
@@ -56,7 +67,7 @@ export function wishView(wish, { team = false } = {}) {
       ? t('Stand: {date}, zuletzt geändert von {name}', { date: formatShort(Math.floor(wish.updatedAt / 1000)), name: wish.by })
       : t('Stand: {date}', { date: formatShort(Math.floor(wish.updatedAt / 1000)) })));
   }
-  return h('div', { class: 'wish-view' }, parts);
+  return h('div', { class: 'wish-view' }, frozenNote(frozenAt), parts);
 }
 
 // ---------- Editor für die eigene Wunschliste
@@ -107,17 +118,32 @@ function healthFields(state, initial, onWithdraw, rerender) {
     blocks);
 }
 
-function wishEditor({ initial, deadline, onSave, onWithdraw, team = false }) {
+function wishEditor({ initial, deadline, onSave, onWithdraw, team = false, freeze = null }) {
   const state = initial ? structuredClone(initial) : M.emptyWish();
   state.profile ??= {};
   if (!state.items.length) state.items.push({ text: '', link: '' });
   const body = h('div', { class: 'wish-editor' });
-  const editable = nowSec() < deadline;
+  // Festlegen (2.11): freeze = { frozenAt, unlockRequested, onFreeze, onUnlockRequest } – nur Personen-Runden
+  const frozenAt = freeze?.frozenAt ?? null;
+  const locked = frozenAt !== null && nowSec() >= frozenAt + FREEZE_GRACE;
+  const beforeDeadline = nowSec() < deadline;
+  const editable = beforeDeadline && !locked;
 
   const render = () => {
     clear(body);
     if (!editable) {
-      add(body, initial ? wishView(initial) : h('p', { class: 'muted' }, t('Du hast keine Wünsche eingetragen – dein Wichtel lässt sich überraschen.')), h('p', { class: 'hint' }, t('Die Wunschfrist ist abgelaufen.')));
+      add(body, initial ? wishView(initial) : h('p', { class: 'muted' }, t('Du hast keine Wünsche eingetragen – dein Wichtel lässt sich überraschen.')));
+      if (!beforeDeadline) {
+        add(body, h('p', { class: 'hint' }, t('Die Wunschfrist ist abgelaufen.')));
+      } else {
+        add(body, notice(t('Du hast deine Wünsche am {date} festgelegt. Ändern geht nur noch, wenn die Organisator:in die Festlegung aufhebt.', { date: formatShort(frozenAt) }), 'info'));
+        add(body, freeze.unlockRequested
+          ? h('p', { class: 'hint' }, t('Deine Bitte um Freigabe ist bei der Organisator:in angekommen.'))
+          : h('p', null, actionButton(t('Organisator:in um Freigabe bitten'), async () => {
+            await freeze.onUnlockRequest();
+            toast(t('Bitte gesendet. Die Organisator:in sieht sie in der Verwaltung.'), 'ok');
+          }, { cls: 'btn btn-small' })));
+      }
       // Widerruf bleibt jederzeit möglich (Art. 7 Abs. 3 DSGVO)
       if (M.HEALTH_FIELDS.some((k) => initial?.profile?.[k])) {
         add(body, h('p', null, actionButton(t('Einwilligung widerrufen und Allergie-Angabe löschen'), async () => {
@@ -179,6 +205,9 @@ function wishEditor({ initial, deadline, onSave, onWithdraw, team = false }) {
       field(t('Bitte nicht (optional)'), nogo, team
         ? t('Was ihr auf keinen Fall bekommen möchtet.')
         : t('Was du auf keinen Fall bekommen möchtest. Allergien und Unverträglichkeiten bitte nur im Steckbrief eintragen – dort mit Einwilligung.')),
+      frozenAt !== null
+        ? notice(t('Festgelegt am {date}. Kleine Korrekturen sind noch bis {until} möglich, danach nicht mehr.', { date: formatShort(frozenAt), until: formatDateTime(frozenAt + FREEZE_GRACE) }), 'ok')
+        : null,
       h('div', { class: 'form-actions' },
         actionButton(t('Wünsche speichern'), async () => {
           const stats = {};
@@ -194,12 +223,34 @@ function wishEditor({ initial, deadline, onSave, onWithdraw, team = false }) {
             ? tn(stats.removed, 'Wünsche gespeichert. Aus deinen Links wurde {n} Tracking-Angabe entfernt.', 'Wünsche gespeichert. Aus deinen Links wurden {n} Tracking-Angaben entfernt.')
             : t('Wünsche gespeichert.'), 'ok');
         }, { cls: 'btn btn-primary' }),
-        h('span', { class: 'hint' }, t('Änderbar bis {date} ({rel}).', { date: formatDate(deadline), rel: relative(deadline) }))),
+        freeze && frozenAt === null ? actionButton(t('Speichern & festlegen'), async () => {
+          if (!confirm(t('Wünsche festlegen? Danach hast du noch 24 Stunden für kleine Korrekturen, dann sind sie fest – nur die Organisator:in kann das wieder aufheben. Dein Wichtel sieht, dass deine Wünsche feststehen, und kann früher loslegen.'))) return;
+          const stats = {};
+          if (!M.hasHealthConsent(state.profile)) for (const k of M.HEALTH_FIELDS) state.profile[k] = '';
+          await onSave(state, stats, { freeze: true });
+          toast(t('Wünsche gespeichert und festgelegt.'), 'ok');
+          freeze.onFreeze();
+        }, { cls: 'btn' }) : null,
+        h('span', { class: 'hint' }, frozenAt === null
+          ? t('Änderbar bis {date} ({rel}).', { date: formatDate(deadline), rel: relative(deadline) })
+          : t('Korrekturen bis {date}.', { date: formatDateTime(Math.min(frozenAt + FREEZE_GRACE, deadline)) }))),
+      freeze && frozenAt === null
+        ? h('p', { class: 'hint' }, t('„Festlegen“: Du bist fertig und änderst nichts mehr. Dein Wichtel sieht das und kann schon vor der Wunschfrist ein Geschenk besorgen.'))
+        : null,
       h('p', { class: 'hint' }, t('Links werden beim Speichern von Tracking-Angaben befreit (z. B. utm_…, fbclid, Partner-Kennungen). So verrät ein Link nicht, woher du ihn hast.')),
     );
   };
   render();
   return body;
+}
+
+function freezeOpts(pctx, me, reload) {
+  return {
+    frozenAt: me.wishFrozenAt ?? null,
+    unlockRequested: !!me.unlockRequested,
+    onFreeze: reload,
+    onUnlockRequest: async () => { await M.requestWishUnlock(pctx); reload(); },
+  };
 }
 
 // ---------- Wichtelpost
@@ -475,8 +526,9 @@ export async function personDrawSection({ pctx, data, reload }) {
     if (me.rsvp === 'raus') return null;
     add(wrap, card(t('Deine Wünsche'),
       h('p', { class: 'hint' }, t('Dein Wichtel sieht sie erst nach der Ziehung. Betragslimit: {budget}.', { budget: euro(meta.budget) })),
-      wishEditor({ initial: own, deadline: round.wishDeadline, onSave: (w, stats) => M.saveOwnWish(pctx, w, null, stats),
-        onWithdraw: async () => { await M.withdrawHealthConsent(pctx, own, null); reload(); } })));
+      wishEditor({ initial: own, deadline: round.wishDeadline, onSave: (w, stats, o = {}) => M.saveOwnWish(pctx, w, null, stats, { ...o, frozenAt: me.wishFrozenAt }),
+        onWithdraw: async () => { await M.withdrawHealthConsent(pctx, own, null); reload(); },
+        freeze: freezeOpts(pctx, me, reload) })));
     return wrap;
   }
 
@@ -488,7 +540,7 @@ export async function personDrawSection({ pctx, data, reload }) {
   const { giving, receiving } = drawn;
   const [giveBox, recvBox] = await Promise.all([M.loadMailbox(giving, 'g'), M.loadMailbox(receiving, 'r')]);
   try {
-    await M.syncWishToMailbox(own, receiving, recvBox);
+    await M.syncWishToMailbox(own, receiving, recvBox, me.wishFrozenAt ?? null);
   } catch (e) {
     toast(t('Wunschliste konnte nicht übertragen werden: {msg}', { msg: e.message }), 'error');
   }
@@ -505,7 +557,7 @@ export async function personDrawSection({ pctx, data, reload }) {
     ]),
     h('p', { class: 'hint' }, t('Betragslimit: {budget} · Bescherung: {date}', { budget: euro(meta.budget), date: formatDate(round.eventDate) })),
     h('h3', null, t('Wünsche')),
-    wishView(giveBox.wish),
+    wishView(giveBox.wish, { frozenAt: now < round.wishDeadline ? giveBox.wishFrozenAt : null }),
     now < round.eventDate ? h('details', { class: 'inline-details' }, h('summary', null, t('Ideen-Würfel')), ideaDice(meta.budget)) : null,
     now < round.eventDate || giveBox.hints.length ? hintsGiver({ box: giving, mailbox: giveBox, round, reload }) : null,
     afterEvent ? afterEventGiver({ box: giving, mailbox: giveBox, name, reload }) : null,
@@ -517,8 +569,9 @@ export async function personDrawSection({ pctx, data, reload }) {
   add(wrap,
     revealCard,
     card(t('Deine Wünsche'),
-      wishEditor({ initial: own, deadline: round.wishDeadline, onSave: (w, stats) => M.saveOwnWish(pctx, w, receiving, stats),
-        onWithdraw: async () => { await M.withdrawHealthConsent(pctx, own, receiving); reload(); } })),
+      wishEditor({ initial: own, deadline: round.wishDeadline, onSave: (w, stats, o = {}) => M.saveOwnWish(pctx, w, receiving, stats, { ...o, frozenAt: me.wishFrozenAt }),
+        onWithdraw: async () => { await M.withdrawHealthConsent(pctx, own, receiving); reload(); },
+        freeze: freezeOpts(pctx, me, reload) })),
     card(t('Post von deinem Wichtel'),
       hintsReceiver(recvBox),
       afterEvent ? afterEventReceiver({ box: receiving, mailbox: recvBox, reload }) : null,

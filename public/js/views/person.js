@@ -30,6 +30,7 @@ export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams 
       steps.push(t('Warte auf die Auslosung. Danach seht ihr hier, welches Team ihr beschenkt, und schreibt gemeinsam euren Team-Wunschzettel.'));
     } else if (wichteln) {
       if (!me.wishCt) steps.push(t('Trag deine Wünsche ein (oder „keine Idee“) – bis {date}.', { date: formatDate(round.wishDeadline) }));
+      else if (me.wishFrozenAt) steps.push(t('Deine Wünsche sind festgelegt.'));
       steps.push(t('Warte auf die Ziehung. Danach siehst du hier, wen du beschenkst.'));
     } else {
       steps.push(giftDone
@@ -56,7 +57,7 @@ export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams 
     if (now < round.wishDeadline) {
       steps.push(teams
         ? t('Euren Team-Wunschzettel könnt ihr noch bis {date} ergänzen.', { date: formatDate(round.wishDeadline) })
-        : t('Deine eigenen Wünsche kannst du noch bis {date} ergänzen.', { date: formatDate(round.wishDeadline) }));
+        : me.wishFrozenAt ? t('Deine Wünsche sind festgelegt.') : t('Deine eigenen Wünsche kannst du noch bis {date} ergänzen.', { date: formatDate(round.wishDeadline) }));
     }
   } else if (now < round.eventDate && teams) {
     steps.push(t('Schau unten nach, welches Team ihr beschenkt, und besorgt gemeinsam ein Geschenk bis {date} (Betragslimit: {budget}).', { date: formatDate(round.eventDate), budget: euro(budget) }));
@@ -64,7 +65,7 @@ export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams 
     steps.push(t('Unsicher? Fragt das andere Team anonym über die Wichtelpost.'));
   } else if (now < round.eventDate) {
     steps.push(t('Schau unten nach, wen du beschenkst, und besorg ein Geschenk bis {date} (Betragslimit: {budget}).', { date: formatDate(round.eventDate), budget: euro(budget) }));
-    if (now < round.wishDeadline) steps.push(t('Deine eigenen Wünsche kannst du noch bis {date} ergänzen.', { date: formatDate(round.wishDeadline) }));
+    if (now < round.wishDeadline) steps.push(me.wishFrozenAt ? t('Deine Wünsche sind festgelegt – dein Wichtel sieht das und kann schon loslegen.') : t('Deine eigenen Wünsche kannst du noch bis {date} ergänzen.', { date: formatDate(round.wishDeadline) }));
     steps.push(t('Unsicher? Frag deine Person anonym über die Wichtelpost.'));
   } else if (now < after) {
     steps.push(t('Rate, wer dein Wichtel war, und sag anonym Danke – bis {date}.', { date: formatDate(after) }));
@@ -245,7 +246,7 @@ export async function renderPerson(root, pctx) {
     h('p', { class: 'lead' }, t('Hallo {name}!', { name })),
     justClaimed ? notice(t('Einladung angenommen. Sichere jetzt deinen Zugang, dann sag zu oder ab.'), 'ok') : null,
     justJoined ? notice(t('Du bist eingetragen und dabei. Sichere jetzt deinen Zugang.'), 'ok') : null,
-    card(t('Was jetzt?'), h('ul', { class: 'next-steps' }, steps.map((s) => h('li', null, s))), giftBox, timeline(round, giftable || data.giftDone ? { gift: data.giftDone } : {}),
+    card(t('Was jetzt?'), h('ul', { class: 'next-steps' }, steps.map((s) => h('li', null, s))), giftBox, timeline(round, { ...(giftable || data.giftDone ? { gift: data.giftDone } : {}), wishFrozen: !!me.wishFrozenAt }),
       (round.questions?.mode ?? 0) > 0 ? h('p', { class: 'help-row' }, helpButton()) : null),
     me.rsvp !== 'raus' ? countdownCard(round) : null,
     accessSection,

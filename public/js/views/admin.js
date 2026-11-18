@@ -254,7 +254,18 @@ export async function renderAdmin(root, ctx) {
           p.hasEmail ? chip(p.notify ? t('✉ E-Mail') : t('✉ ohne Erinnerungen'), 'muted') : null,
           analogEntry ? chip(t('ohne Smartphone · hilft: {helper}', { helper: helperNameOf(analogEntry, nameOf) }), 'muted') : null,
           helping ? chip(t('hilft {name}', { name: nameOf[helping.pid] ?? '?' }), 'muted') : null,
+          p.wishFrozenAt ? chip(t('Wünsche festgelegt'), 'muted') : null,
+          p.unlockRequested ? chip(t('bittet um Freigabe der Wünsche'), 'warn') : null,
           chip(t(rsvpLabel), rsvpKind)),
+        // Festlegung aufheben (2.11): auf Bitte der Person oder von sich aus; nur vor der Wunschfrist sinnvoll
+        p.wishFrozenAt && nowSec() < (round.wishDeadline ?? 0)
+          ? h('p', { class: 'person-unfreeze' }, actionButton(p.unlockRequested ? t('Wünsche wieder freigeben') : t('Festlegung aufheben'), async () => {
+            if (!confirm(t('Festlegung der Wünsche von {name} aufheben? {name} kann die Wünsche dann wieder ändern; der Wichtel sieht, dass sie nicht mehr festgelegt sind.', { name: p.name }))) return;
+            await M.unfreezeWishes(ctx, p.id);
+            toast(t('Festlegung aufgehoben.'), 'ok');
+            reload();
+          }, { cls: p.unlockRequested ? 'btn btn-small btn-primary' : 'btn btn-small btn-ghost' }))
+          : null,
       ),
       actions,
     ));

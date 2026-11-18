@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2.10.1 – 2026-11-18
+
+Datenbankschema 11 (nur ergänzend).
+
+- **Wünsche festlegen:** Neben „Wünsche speichern“ gibt es „Speichern & festlegen“, auch schon vor der Auslosung. Danach bleiben 24 Stunden für kleine Korrekturen; dann sind die Wünsche fest. Die Person kann die Organisator:in um Freigabe bitten; die Organisator:in sieht „Wünsche festgelegt“ bzw. „bittet um Freigabe“ und kann die Festlegung aufheben.
+- Der Wichtel sieht „Festgelegt – kleine Korrekturen noch bis …“ bzw. „ändern sich nicht mehr, du kannst schon loslegen“. In der Zeitleiste der Person gilt „Wünsche“ als erledigt. Keine zusätzliche Mail.
+- Der Server sperrt Änderungen nach den 24 Stunden selbst (eigene Wunschliste und Kopie beim Wichtel). Der Widerruf einer Einwilligung zu Gesundheitsangaben bleibt jederzeit möglich. Nicht beim Team-Wichteln.
+- Neue Auslosung lässt die Festlegung bestehen (die Wünsche sind dieselben); neu einladen setzt sie zurück.
+- Layout: Haken „Geschenk besorgt“ als eigenes Feld mit mehr Abstand; Zeitleiste „Geschenk besorgen“ bzw. „Geschenk finden“ (kein dreizeiliger Umbruch mehr); mehr Abstand in der Karte „Frage an die Organisator:in“.
+
 ## 2.10.0 – 2026-11-18
 
 Datenbankschema 10 (nur ergänzend).

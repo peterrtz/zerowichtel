@@ -64,6 +64,14 @@ async function step(name, fn) {
   await fn();
   console.log(`ok   ${name}`);
 }
+async function unwrap(page) {
+  await page.bringToFront();
+  await page.reload();
+  await page.waitForSelector('.gift, .reveal-name', { timeout: 10000 });
+  if (await page.$('.gift')) await page.click('.gift');
+  await waitText(page, 'Du beschenkst');
+  return page.$eval('.reveal-name', (e) => e.textContent);
+}
 /** Einladung annehmen, Zugang als gesichert bestätigen, zusagen. */
 async function accept(page, url, name) {
   await page.goto(url);
@@ -247,6 +255,44 @@ try {
     await a.bringToFront();
     await a.click('.gift-check input');
     await waitText(a, 'Haken entfernt.');
+  });
+
+  await step('2.10.1: Cleo legt ihre Wünsche fest – ihr Wichtel sieht es, Zeitleiste, Organisator:in hebt auf', async () => {
+    const c = pages.Cleo;
+    await c.bringToFront();
+    await c.reload();
+    await waitText(c, 'Speichern & festlegen');
+    await c.type('.wish-item textarea', 'Ein Puzzle mit 1000 Teilen');
+    await clickText(c, 'Speichern & festlegen');
+    await waitText(c, 'Wünsche gespeichert und festgelegt.');
+    await waitText(c, 'Kleine Korrekturen sind noch bis');
+    await waitText(c, 'Deine Wünsche sind festgelegt – dein Wichtel sieht das und kann schon loslegen.');
+    const wishDone = await c.evaluate(() => [...document.querySelectorAll('.tl-step')].find((x) => x.textContent.includes('Wünsche')).classList.contains('tl-done'));
+    if (!wishDone) problems.push('Zeitleiste: Wünsche nach dem Festlegen nicht erledigt');
+    if (await c.evaluate(() => [...document.querySelectorAll('button')].some((b) => b.textContent === 'Speichern & festlegen'))) problems.push('„Speichern & festlegen“ nach dem Festlegen noch da');
+    await shotCard(c, 'Deine Wünsche', 'wuensche-festgelegt');
+    await axe(c, 'Wünsche festgelegt');
+    // Wichtel von Cleo finden
+    let giver = null;
+    for (const n of ['Anna', 'Benedikt']) if (await unwrap(pages[n]) === 'Cleo') giver = pages[n];
+    if (!giver) throw new Error('Cleos Wichtel nicht gefunden');
+    await giver.reload();
+    await waitText(giver, 'Ein Puzzle mit 1000 Teilen');
+    await waitText(giver, 'Deine Person hat ihre Wünsche festgelegt; kleine Korrekturen sind noch bis');
+    await shotCard(giver, 'Du beschenkst', 'wichtel-sieht-festgelegt');
+    // Organisator:in hebt auf
+    await admin.bringToFront();
+    await admin.reload();
+    await waitText(admin, 'Wünsche festgelegt');
+    await clickText(admin, 'Festlegung aufheben');
+    await waitText(admin, 'Festlegung aufgehoben.');
+    await c.bringToFront();
+    await c.reload();
+    await waitText(c, 'Speichern & festlegen');
+    await giver.bringToFront();
+    await giver.reload();
+    await waitText(giver, 'Ein Puzzle mit 1000 Teilen');
+    if (await giver.evaluate(() => document.body.textContent.includes('hat ihre Wünsche festgelegt'))) problems.push('Wichtel sieht nach dem Aufheben noch „festgelegt“');
   });
 
   await step('Organisator:in löscht Annas Frage – Anna sieht sie nicht mehr', async () => {

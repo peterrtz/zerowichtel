@@ -81,7 +81,7 @@ export function personQuestionsCard({ pctx, round }) {
 
   add(body,
     h('p', null, t('Etwas unklar oder brauchst du Hilfe? Frag hier die Organisator:in. Nur sie kann deine Frage lesen.')),
-    notice(t('Bitte schreib nichts darüber, wen du beschenkst – auch die Organisator:in soll das nicht erfahren.'), 'info'),
+    Object.assign(notice(t('Bitte schreib nichts darüber, wen du beschenkst – auch die Organisator:in soll das nicht erfahren.'), 'info'), { className: 'notice notice-info q-note' }),
     h('div', { class: 'field' }, h('label', { for: 'q-text' }, t('Deine Frage')), text, counter(text)),
     mode === 2
       ? h('div', { class: 'field' },

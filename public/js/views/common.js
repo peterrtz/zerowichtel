@@ -139,7 +139,7 @@ export function printInviteCards({ round, meta, cards }) {
 /**
  * Zeitleiste der Runde mit „Du bist hier“. Reine Anzeige aus Status und Terminen.
  */
-export function timelineSteps(round, now = nowSec(), { gift } = {}) {
+export function timelineSteps(round, now = nowSec(), { gift, wishFrozen = false } = {}) {
   const open = round.status === 'offen';
   // Geschenk-Schritt: Teilnehmende haken ihn selbst ab (gift = true/false); in der Ansicht der Organisator:in
   // (gift undefiniert) gilt er mit dem Wichteltag als erledigt. Nach dem Wichteltag immer erledigt.
@@ -159,7 +159,7 @@ export function timelineSteps(round, now = nowSec(), { gift } = {}) {
   return [
     { label: t('Zusagen'), date: earlyDraw ? round.drawnAt : round.rsvpDeadline, done: !open || now >= round.rsvpDeadline },
     { label: t('Auslosen'), date: round.drawnAt ?? null, done: !open },
-    { label: t('Wünsche'), date: round.wishDeadline, done: !open && now >= round.wishDeadline },
+    { label: t('Wünsche'), date: round.wishDeadline, done: !open && (now >= round.wishDeadline || wishFrozen) },
     { label: t('Geschenk besorgen'), date: null, done: !open && giftDone, gift: true },
     { label: t('Bescherung'), date: round.eventDate, done: !open && now >= round.eventDate },
     { label: t('Raten und Danke sagen'), date: after, done: !open && now >= after },

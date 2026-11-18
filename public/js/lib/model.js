@@ -716,21 +716,31 @@ export async function loadOwnWish(pctx, me) {
   return C.decryptJson(await selfKey(pctx), me.wishCt, AAD.wish(pctx.roundId, pctx.pid));
 }
 
-async function pushWishToMailbox(receiving, wish) {
-  await api('PUT', '/mailbox/wish', {
-    auth: tokenAuth('r', receiving),
-    body: { wishCt: await C.encryptJson(receiving.m, wish, AAD.mbwish(receiving.mid)) },
-  });
+/** frozenAt: undefined = Festlegung unverändert, Zahl = festlegen (Zeitpunkt der eigenen Festlegung), null = aufheben. */
+async function pushWishToMailbox(receiving, wish, frozenAt = undefined) {
+  const body = { wishCt: await C.encryptJson(receiving.m, wish, AAD.mbwish(receiving.mid)) };
+  if (frozenAt !== undefined) body.frozenAt = frozenAt;
+  await api('PUT', '/mailbox/wish', { auth: tokenAuth('r', receiving), body });
+}
+
+/** Bitte an die Organisator:in, festgelegte Wünsche wieder freizugeben (2.11). */
+export async function requestWishUnlock(pctx) {
+  return api('POST', '/me/wishes/unlock-request', { auth: authP(pctx), body: {} });
+}
+
+/** Organisator:in hebt die Festlegung einer Person auf (2.11). */
+export async function unfreezeWishes(ctx, pid) {
+  return api('POST', `/rounds/${ctx.roundId}/participants/${pid}/unfreeze`, { auth: authA(ctx), body: {} });
 }
 
 /** Speichert die eigene Wunschliste; nach der Ziehung zusätzlich für den Wichtel im Postfach. */
-export async function saveOwnWish(pctx, wish, receiving, stats = {}) {
+export async function saveOwnWish(pctx, wish, receiving, stats = {}, { freeze = false, frozenAt = null } = {}) {
   const w = validateWish(wish, stats);
-  await api('PUT', '/me/wishes', {
-    auth: authP(pctx),
-    body: { wishCt: await C.encryptJson(await selfKey(pctx), w, AAD.wish(pctx.roundId, pctx.pid)) },
-  });
-  if (receiving) await pushWishToMailbox(receiving, w);
+  const body = { wishCt: await C.encryptJson(await selfKey(pctx), w, AAD.wish(pctx.roundId, pctx.pid)) };
+  if (freeze) body.freeze = true;
+  await api('PUT', '/me/wishes', { auth: authP(pctx), body });
+  // Festlegen (2.11): auch die Kopie beim Wichtel als festgelegt markieren
+  if (receiving) await pushWishToMailbox(receiving, w, freeze || frozenAt ? (frozenAt ?? Math.floor(Date.now() / 1000)) : undefined);
   return w;
 }
 
@@ -798,18 +808,20 @@ export async function loadMailbox(box, role) {
   for (const x of d.hints ?? []) {
     hints.push({ id: x.id, releaseAt: x.releaseAt, text: await C.decryptJson(box.m, x.bodyCt, AAD.hint(box.mid, x.id)) });
   }
-  return { wish, wishRev: d.wishRev ?? 0, messages, hints, hintsPending: d.hintsPending ?? 0, nextHintAt: d.nextHintAt ?? null, openUntil: d.openUntil ?? null };
+  return { wish, wishRev: d.wishRev ?? 0, wishFrozenAt: d.wishFrozenAt ?? null, messages, hints, hintsPending: d.hintsPending ?? 0, nextHintAt: d.nextHintAt ?? null, openUntil: d.openUntil ?? null };
 }
 
 /**
  * Nach der Ziehung: eigene Wünsche ins Postfach übertragen, falls dort noch nicht aktuell.
  * Gibt true zurück, wenn übertragen wurde.
  */
-export async function syncWishToMailbox(own, receiving, mailbox) {
+export async function syncWishToMailbox(own, receiving, mailbox, frozenAt = null) {
   const target = own ?? { ...emptyWish(), updatedAt: -1 };
-  if (mailbox.wish && mailbox.wish.updatedAt === target.updatedAt) return false;
+  // Festlegung (2.11): eigene Festlegung an die Kopie beim Wichtel weitergeben – oder deren Aufhebung
+  const freezeChange = (frozenAt !== null) !== (mailbox.wishFrozenAt !== null && mailbox.wishFrozenAt !== undefined);
+  if (mailbox.wish && mailbox.wish.updatedAt === target.updatedAt && !freezeChange) return false;
   try {
-    await pushWishToMailbox(receiving, target);
+    await pushWishToMailbox(receiving, target, freezeChange ? frozenAt : undefined);
     return true;
   } catch (e) {
     if (e.status === 409) return false; // nach Frist bereits übertragen

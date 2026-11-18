@@ -24,7 +24,7 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.10.0';
+export const VERSION = '2.10.1';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
@@ -33,7 +33,8 @@ const L = { META: 24000, ADMIN: 60000, NAME: 600, INVITE: 600, RECOVERY: 1200, S
 // Rückfragen: 700 Zeichen Text (bis 2100 Byte UTF-8) plus Schlüssel und Rahmen, Base64 → großzügig 6000
 const Q_PER_DAY = 3;         // je Person (mit Namen) bzw. je Anschluss (anonym) und Tag
 const Q_ANON_ROUND_DAY = 20;  // anonyme Fragen je Runde und Tag insgesamt
-const Q_OPEN_MAX = 30;        // gespeicherte Fragen je Person bzw. anonym je Runde
+const Q_OPEN_MAX = 30;
+const FREEZE_GRACE = DAY;      // nach dem Festlegen der Wünsche: 24 h für Korrekturen (2.11)        // gespeicherte Fragen je Person bzw. anonym je Runde
 // ASSIGN: Team-Zuordnung enthält die Namen beider Teams. Gemessen: 50 Personen mit 40 Zeichen à 3 Byte = 9053 Zeichen.
 const MAX_MESSAGES = 100;
 const MAX_HINTS = 5;
@@ -146,6 +147,8 @@ export class App {
       r('GET', '/rounds/:id/keys', (q, id) => this.publicKeys(q, id)),
       r('PUT', '/rounds/:id/draw', (q, id) => this.saveDraw(q, id)),
       r('PUT', '/me/wishes', (q) => this.saveWishes(q)),
+      r('POST', '/me/wishes/unlock-request', (q) => this.requestUnlock(q)),
+      r('POST', '/rounds/:id/participants/:id/unfreeze', (q, id, pid) => this.unfreezeWishes(q, id, pid)),
       r('PUT', '/me/team', (q) => this.setOwnTeam(q)),
       r('PUT', '/me/done', (q) => this.setDone(q)),
       r('PUT', '/rounds/:id/participants/:id/team', (q, id, pid) => this.setTeam(q, id, pid)),
@@ -520,7 +523,7 @@ export class App {
 
   adminView(req, roundId) {
     const round = this.adminRound(req, roundId);
-    const people = all(this.db, `SELECT id, name_ct, invite_ct, claimed_at, rsvp, email_ct, email_view_ct, notify, assignment_ct, draw_seen, draw_reminded, via_group, team_ct, created_at
+    const people = all(this.db, `SELECT id, name_ct, invite_ct, claimed_at, rsvp, email_ct, email_view_ct, notify, assignment_ct, draw_seen, draw_reminded, via_group, team_ct, wish_frozen_at, wish_unlock_req, created_at
                                    FROM participants WHERE round_id = ? ORDER BY created_at, rowid`, roundId).map((p) => ({
       id: p.id,
       nameCt: p.name_ct,
@@ -535,6 +538,8 @@ export class App {
       drawRemindedAt: p.draw_reminded,
       viaGroup: Boolean(p.via_group),
       teamCt: p.team_ct,
+      wishFrozenAt: p.wish_frozen_at ?? null,
+      unlockRequested: p.wish_unlock_req === 1,
     }));
     const join = round.join_hash
       ? { ct: round.join_ct, until: round.join_until, max: round.join_max, used: round.join_used }
@@ -692,7 +697,7 @@ export class App {
     const inviteCt = V.ct(req.body, 'inviteCt', L.INVITE);
     tx(this.db, () => {
       run(this.db, `UPDATE participants SET invite_hash = ?, invite_ct = ?, claimed_at = NULL, access_hash = NULL, pubkey = NULL,
-                           rsvp = ?, wish_ct = NULL, assignment_ct = NULL, mailboxkey_ct = NULL, recovery_hash = NULL, recovery_ct = NULL, done_ct = NULL
+                           rsvp = ?, wish_ct = NULL, assignment_ct = NULL, mailboxkey_ct = NULL, recovery_hash = NULL, recovery_ct = NULL, done_ct = NULL, wish_frozen_at = NULL, wish_unlock_req = 0
                      WHERE id = ?`, inviteHash, inviteCt, drawn ? person.rsvp : 'offen', pid);
       run(this.db, 'DELETE FROM questions WHERE pid = ?', pid);
       if (drawn) this.resetDraw(roundId);
@@ -807,7 +812,34 @@ export class App {
     const withdraw = get(req.body, 'withdraw') === true;
     if (!withdraw && this.now() >= round.wish_deadline) throw new HttpError(409, 'deadline', 'Die Wunschfrist ist abgelaufen.');
     if (!withdraw && p.rsvp === 'raus') throw new HttpError(409, 'not_participating', 'Wer diesmal raus ist, braucht keine Wunschliste.');
-    run(this.db, 'UPDATE participants SET wish_ct = ? WHERE id = ?', V.ct(req.body, 'wishCt', L.WISH), p.id);
+    const now = this.now();
+    // Festgelegt (2.11): 24 h Korrektur, danach gesperrt – außer Widerruf einer Einwilligung
+    if (!withdraw && p.wish_frozen_at !== null && now >= p.wish_frozen_at + FREEZE_GRACE) {
+      throw new HttpError(409, 'wishes_frozen', 'Deine Wünsche sind festgelegt. Die Organisator:in kann die Festlegung aufheben.');
+    }
+    const freeze = get(req.body, 'freeze') === true;
+    if (freeze && round.teams_ct !== null) throw new HttpError(409, 'team', 'Beim Team-Wichteln lassen sich Wünsche nicht festlegen.');
+    const ct = V.ct(req.body, 'wishCt', L.WISH);
+    run(this.db, `UPDATE participants SET wish_ct = ?${freeze && p.wish_frozen_at === null ? ', wish_frozen_at = ?' : ''} WHERE id = ?`,
+      ...(freeze && p.wish_frozen_at === null ? [ct, now, p.id] : [ct, p.id]));
+    return noContent();
+  }
+
+  /** Bitte um Freigabe festgelegter Wünsche (nach den 24 h Korrekturzeit, vor der Wunschfrist). */
+  requestUnlock(req) {
+    const [p, round] = this.personByToken(req, 'p');
+    const now = this.now();
+    if (p.wish_frozen_at === null) throw new HttpError(409, 'not_frozen', 'Deine Wünsche sind nicht festgelegt.');
+    if (now >= round.wish_deadline) throw new HttpError(409, 'deadline', 'Die Wunschfrist ist abgelaufen.');
+    run(this.db, 'UPDATE participants SET wish_unlock_req = 1 WHERE id = ?', p.id);
+    return noContent();
+  }
+
+  /** Organisator:in hebt die Festlegung auf (die App der Person gibt das an die Kopie beim Wichtel weiter). */
+  unfreezeWishes(req, roundId, pid) {
+    this.adminRound(req, roundId);
+    this.participantOf(roundId, pid);
+    run(this.db, 'UPDATE participants SET wish_frozen_at = NULL, wish_unlock_req = 0 WHERE id = ?', pid);
     return noContent();
   }
 
@@ -833,6 +865,7 @@ export class App {
       wishCt: mb.wish_ct,
       wishDay: mb.wish_day,
       wishRev: mb.wish_rev,
+      wishFrozenAt: mb.wish_frozen_at ?? null,
       messages,
       hints: visible.map((x) => ({ id: x.id, bodyCt: x.body_ct, releaseAt: x.release_at })),
       hintsPending: role === 'r' ? pending.length : undefined,
@@ -854,9 +887,26 @@ export class App {
     // withdraw gibt es nur für die persönliche Wunschliste (Widerruf einer Einwilligung); der Team-Wunschzettel hat
     // keine Gesundheitsangaben – sonst ließe sich darüber die Wunschfrist umgehen.
     const withdraw = get(req.body, 'withdraw') === true && mb.teams_ct === null;
-    if (!withdraw && this.now() >= mb.wish_deadline && mb.wish_ct !== null) throw new HttpError(409, 'deadline', 'Die Wunschfrist ist abgelaufen.');
-    const res = run(this.db, 'UPDATE mailboxes SET wish_ct = ?, wish_day = ?, wish_rev = wish_rev + 1 WHERE id = ? AND wish_rev = ?',
-      V.ct(req.body, 'wishCt', L.WISH), Math.floor(this.now() / DAY), mb.id, mb.wish_rev);
+    const now = this.now();
+    if (!withdraw && now >= mb.wish_deadline && mb.wish_ct !== null) throw new HttpError(409, 'deadline', 'Die Wunschfrist ist abgelaufen.');
+    // Festlegung (2.11, nur Personen-Runden): frozenAt = Zeitpunkt aus der eigenen Festlegung, null = aufgehoben.
+    // Aufheben darf nur die beschenkte Person selbst (r-Token); ihre App tut das erst nach Freigabe durch die
+    // Organisator:in. Der Wichtel sieht jede Änderung des Zustands.
+    let frozenAt = mb.wish_frozen_at;
+    if (has(req.body, 'frozenAt')) {
+      if (mb.teams_ct !== null) throw new HttpError(409, 'team', 'Beim Team-Wichteln lassen sich Wünsche nicht festlegen.');
+      const f = V.int(req.body, 'frozenAt', true);
+      if (f !== null && f < now - 400 * DAY) fail('frozenAt');
+      // Einmal gesetzt und nach der Korrekturzeit: Inhalt bleibt gesperrt (nur Aufheben mit null geht)
+      if (f !== null && !withdraw && mb.wish_frozen_at !== null && now >= mb.wish_frozen_at + FREEZE_GRACE && mb.wish_ct !== null) {
+        throw new HttpError(409, 'wishes_frozen', 'Die Wünsche sind festgelegt.');
+      }
+      frozenAt = f === null ? null : (mb.wish_frozen_at ?? Math.min(f, now)); // Uhr des Geräts kann vorgehen
+    } else if (!withdraw && mb.wish_frozen_at !== null && now >= mb.wish_frozen_at + FREEZE_GRACE && mb.wish_ct !== null) {
+      throw new HttpError(409, 'wishes_frozen', 'Die Wünsche sind festgelegt.');
+    }
+    const res = run(this.db, 'UPDATE mailboxes SET wish_ct = ?, wish_day = ?, wish_rev = wish_rev + 1, wish_frozen_at = ? WHERE id = ? AND wish_rev = ?',
+      V.ct(req.body, 'wishCt', L.WISH), Math.floor(now / DAY), frozenAt, mb.id, mb.wish_rev);
     if (res.changes !== 1) throw new HttpError(409, 'conflict', 'Jemand aus deinem Team hat den Wunschzettel gerade geändert. Bitte neu laden und erneut speichern.');
     return noContent(); // neuer Stand = rev + 1
   }
@@ -1026,6 +1076,8 @@ export class App {
         notify: Boolean(p.notify),
         teamCt: p.team_ct,
         doneCt: p.done_ct,
+        wishFrozenAt: p.wish_frozen_at ?? null,
+        unlockRequested: p.wish_unlock_req === 1,
       },
       counts: { invited: c.total, dabei: c.dabei ?? 0 },
       // Team-Wichteln: Teamwahlen aller Zusagenden für die Anzahl je Team – mit der zufälligen Personen-ID (an sie ist

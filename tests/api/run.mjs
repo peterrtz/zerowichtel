@@ -13,7 +13,7 @@ const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 /** Funktionen ab 2.3 – nicht in der PHP-Fassung 1.2.1 vorhanden. */
 const test23 = (name, fn) => { if (IMPL !== 'php') tests.push([`2.3: ${name}`, fn]); };
-const SCHEMA = IMPL === 'php' ? 4 : 10;
+const SCHEMA = IMPL === 'php' ? 4 : 11;
 function eq(exp, act, msg = '') {
   if (!isDeepStrictEqual(exp, act)) throw new Error(`${msg ? `${msg}: ` : ''}erwartet ${inspect(exp)}, erhalten ${inspect(act)}`);
 }
@@ -1470,6 +1470,74 @@ test('2.10: Hinweis an die Organisator:in – nur im E-Mail-Modus, ohne Inhalt, 
   eq(204, await e.status('PUT', `/rounds/${r.id}/organizer-email`, { email: 'orga@example.org', emailViewCt: view }, r.admin));
   eq(200, await e.status('PATCH', `/rounds/${r.id}`, { emailEnabled: false }, r.admin));
   eq(0, e.count(`SELECT COUNT(*) FROM rounds WHERE id = '${r.id}' AND (org_email_ct IS NOT NULL OR org_email_view_ct IS NOT NULL)`));
+});
+
+test('2.10.1: Wünsche festlegen – 24 h Korrektur, dann gesperrt, Bitte um Freigabe, Aufheben, Kopie beim Wichtel', async () => {
+  const e = await Env.make();
+  // vor der Ziehung festlegen
+  const r0 = await e.round();
+  const p0 = await e.person(r0);
+  p0.auth = await e.claim(p0);
+  eq(200, await e.status('PUT', '/me/rsvp', { rsvp: 'dabei' }, p0.auth));
+  eq(204, await e.status('PUT', '/me/wishes', { wishCt: ct(), freeze: true }, p0.auth), 'vor der Ziehung');
+  eq(e.now, (await e.call('GET', '/me', null, p0.auth))[1].me.wishFrozenAt);
+  // nach der Ziehung
+  const [r, people] = await drawnRound(e);
+  const [a, b] = people;
+  const me = async (p) => (await e.call('GET', '/me', null, p.auth))[1].me;
+  eq(null, (await me(a)).wishFrozenAt);
+  const t0 = e.now;
+  eq(204, await e.status('PUT', '/me/wishes', { wishCt: ct(), freeze: true }, a.auth));
+  eq(t0, (await me(a)).wishFrozenAt);
+  e.now += 3600;
+  eq(204, await e.status('PUT', '/me/wishes', { wishCt: ct(), freeze: true }, a.auth), 'Korrektur in den 24 h');
+  eq(t0, (await me(a)).wishFrozenAt, 'Zeitpunkt bleibt');
+  eq(409, await e.status('POST', '/me/wishes/unlock-request', {}, b.auth), 'nicht festgelegt');
+  e.now = t0 + DAY;
+  eq(409, await e.status('PUT', '/me/wishes', { wishCt: ct() }, a.auth), 'nach 24 h gesperrt');
+  eq(204, await e.status('PUT', '/me/wishes', { wishCt: ct(), withdraw: true }, a.auth), 'Widerruf geht immer');
+  // Kopie beim Wichtel (Postfach von a als Beschenkte)
+  const recv = `r.${a.mid}.${a.rTok}`;
+  const giver = `g.${a.mid}.${a.gTok}`;
+  eq(204, await e.status('PUT', '/mailbox/wish', { wishCt: ct(), frozenAt: t0 }, recv));
+  eq(t0, (await e.call('GET', '/mailbox', null, giver))[1].wishFrozenAt, 'Wichtel sieht die Festlegung');
+  eq(409, await e.status('PUT', '/mailbox/wish', { wishCt: ct() }, recv), 'Postfach nach 24 h gesperrt');
+  eq(409, await e.status('PUT', '/mailbox/wish', { wishCt: ct(), frozenAt: t0 }, recv), 'auch mit erneutem Festlegen');
+  eq(204, await e.status('PUT', '/mailbox/wish', { wishCt: ct(), withdraw: true }, recv), 'Widerruf');
+  eq(401, await e.status('PUT', '/mailbox/wish', { wishCt: ct(), frozenAt: null }, giver), 'nur die beschenkte Person');
+  // Bitte um Freigabe und Aufheben durch die Organisator:in
+  eq(204, await e.status('POST', '/me/wishes/unlock-request', {}, a.auth));
+  const adm = async () => (await e.call('GET', `/rounds/${r.id}/admin`, null, r.admin))[1].participants.find((x) => x.id === a.pid);
+  eq(true, (await adm()).unlockRequested);
+  eq(t0, (await adm()).wishFrozenAt);
+  eq(401, await e.status('POST', `/rounds/${r.id}/participants/${a.pid}/unfreeze`, {}, a.auth));
+  eq(204, await e.status('POST', `/rounds/${r.id}/participants/${a.pid}/unfreeze`, {}, r.admin));
+  eq(null, (await adm()).wishFrozenAt);
+  eq(false, (await adm()).unlockRequested);
+  eq(204, await e.status('PUT', '/me/wishes', { wishCt: ct() }, a.auth), 'wieder änderbar');
+  // App der Person hebt die Festlegung im Postfach auf → Wichtel sieht das
+  eq(204, await e.status('PUT', '/mailbox/wish', { wishCt: ct(), frozenAt: null }, recv));
+  eq(null, (await e.call('GET', '/mailbox', null, giver))[1].wishFrozenAt);
+  eq(204, await e.status('PUT', '/mailbox/wish', { wishCt: ct() }, recv));
+  // Uhr des Geräts geht vor: Zeitpunkt wird auf „jetzt“ begrenzt
+  eq(204, await e.status('PUT', '/mailbox/wish', { wishCt: ct(), frozenAt: e.now + 9999 }, recv));
+  eq(e.now, (await e.call('GET', '/mailbox', null, giver))[1].wishFrozenAt);
+  eq(400, await e.status('PUT', '/mailbox/wish', { wishCt: ct(), frozenAt: 'gestern' }, recv));
+  // Neu einladen setzt zurück
+  eq(204, await e.status('PUT', '/me/wishes', { wishCt: ct(), freeze: true }, b.auth));
+  eq(204, await e.status('POST', '/me/wishes/unlock-request', {}, b.auth));
+  eq(200, await e.status('POST', `/rounds/${r.id}/participants/${b.pid}/reinvite`, { inviteHash: h(nid()), inviteCt: ct() }, r.admin));
+  eq(0, e.count(`SELECT COUNT(*) FROM participants WHERE id = '${b.pid}' AND (wish_frozen_at IS NOT NULL OR wish_unlock_req = 1)`));
+  // nach der Wunschfrist keine Bitte mehr
+  eq(204, await e.status('PUT', '/me/wishes', { wishCt: ct(), freeze: true }, people[2].auth));
+  e.now = T0 + 11 * DAY;
+  eq(409, await e.status('POST', '/me/wishes/unlock-request', {}, people[2].auth));
+});
+
+test('2.10.1: Wünsche festlegen gibt es beim Team-Wichteln nicht', async () => {
+  const e = await Env.make();
+  const [, people] = await teamRound(e, 3);
+  eq(409, await e.status('PUT', '/me/wishes', { wishCt: ct(), freeze: true }, people[0].auth));
 });
 
 test('2.7: Analoge Wichtelrunde – nur ein Zähler, ohne Inhalte, begrenzt je Anschluss und Tag', async () => {
