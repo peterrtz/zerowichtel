@@ -5,7 +5,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { sniff, fitSize, cleanCaption, readMeta, adventSundays, PHOTO } from '../../public/js/lib/photos.js';
+import { sniff, fitSize, cleanCaption, readMeta, adventSundays, PHOTO, imageSize, checkImage, MAX_EDGE } from '../../public/js/lib/photos.js';
+import { IMG } from './images.fixture.mjs';
 import { PdfDoc, A4, A4_QUER, deflate, pdfString } from '../../public/js/lib/pdf.js';
 import { normalizeOptions, LAYOUTS, DESIGNS, DEFAULT_OPTIONS } from '../../public/js/lib/album-pdf.js';
 
@@ -75,4 +76,24 @@ test('PDF-Optionen: 5 Layouts, 5 Designs, bereinigt', () => {
   assert.deepEqual([o.layout, o.design, o.orientation, o.title.length, o.text, o.coverPhoto], ['polaroid', 'nacht', 'quer', 60, 'Zeile 1\nZeile 2', 'AAAAAAAAAAAAAAAAAAAAAA']);
   const bad = normalizeOptions({ layout: '__proto__', design: 'toString', orientation: 'schräg', coverPhoto: '../x' });
   assert.deepEqual([bad.layout, bad.design, bad.orientation, bad.coverPhoto], ['zwei', 'winter', 'hoch', 'first']);
+});
+
+test('Bildmaße aus dem Dateikopf; Bildbomben werden abgewiesen (Sicherheitsprüfung 2.13, Nr. 1)', () => {
+  const b = (k) => Uint8Array.from(Buffer.from(IMG[k], 'base64'));
+  for (const k of ['jpeg', 'jpegProg', 'webpLossy', 'webpLossless', 'webpAlpha']) {
+    assert.deepEqual(imageSize(b(k)), { w: 30, h: 20 }, k);
+    assert.deepEqual(checkImage(b(k), MAX_EDGE.thumb), { kind: k.startsWith('jpeg') ? 'jpeg' : 'webp', w: 30, h: 20 }, k);
+  }
+  assert.deepEqual(imageSize(b('bomb')), { w: 12000, h: 12000 });
+  assert.equal(checkImage(b('bomb'), MAX_EDGE.full), null, '12000 Pixel: abgewiesen');
+  assert.equal(checkImage(b('jpeg'), 25), null, 'größer als erlaubt');
+  // abgeschnitten, kaputt, animiert
+  assert.equal(imageSize(b('jpeg').slice(0, 12)), null);
+  assert.equal(imageSize(Uint8Array.from([0xff, 0xd8, 0xff, 0xda, 0, 4, 0, 0, 0, 0, 0, 0])), null, 'Bilddaten vor den Maßen');
+  const anim = b('webpAlpha');
+  if (String.fromCharCode(...anim.slice(12, 16)) === 'VP8X') {
+    anim[20] |= 0x02;
+    assert.equal(imageSize(anim), null, 'animiert');
+  }
+  assert.equal(checkImage(new TextEncoder().encode('<script>alert(1)</script>'), 9999), null);
 });

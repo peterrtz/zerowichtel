@@ -40,7 +40,9 @@
     "mail_admin": [5, 86400],
     "admin": [30, 3600],
     "analog": [5, 86400],
-    "question_anon": [3, 86400]
+    "question_anon": [3, 86400],
+    "photo": [60, 86400],
+    "photo_read": [600, 3600]
   },
 
   // E-Mail-Modus (optional). transport: "smtp" | "brevo" | "log" (nur Entwicklung) | null (aus).

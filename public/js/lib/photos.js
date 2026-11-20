@@ -28,6 +28,58 @@ export function sniff(bytes) {
   return null;
 }
 
+/**
+ * Bildmaße aus dem Dateikopf lesen, ohne das Bild zu entpacken: { w, h } oder null.
+ * JPEG: erster SOF-Abschnitt. WebP: VP8 (verlustbehaftet), VP8L (verlustfrei), VP8X (erweitert; animiert → null).
+ */
+export function imageSize(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const kind = sniff(b);
+  if (kind === 'jpeg') {
+    let i = 2;
+    while (i + 9 < b.length) {
+      if (b[i] !== 0xff) return null;
+      const m = b[i + 1];
+      if (m === 0xff) { i++; continue; }                       // Füllbyte
+      if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+      if (m === 0xda || m === 0xd9) return null;              // Bilddaten ohne vorherige Maße
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+        return { h: (b[i + 5] << 8) | b[i + 6], w: (b[i + 7] << 8) | b[i + 8] };
+      }
+      i += 2 + ((b[i + 2] << 8) | b[i + 3]);
+    }
+    return null;
+  }
+  if (kind === 'webp' && b.length >= 30) {
+    const cc = String.fromCharCode(b[12], b[13], b[14], b[15]);
+    if (cc === 'VP8 ' && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) {
+      return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
+    }
+    if (cc === 'VP8L' && b[20] === 0x2f) {
+      return { w: 1 + (((b[22] & 0x3f) << 8) | b[21]), h: 1 + (((b[24] & 0x0f) << 10) | (b[23] << 2) | ((b[22] & 0xc0) >> 6)) };
+    }
+    if (cc === 'VP8X') {
+      if (b[20] & 0x02) return null; // Animation: nicht unterstützt
+      return { w: 1 + (b[24] | (b[25] << 8) | (b[26] << 16)), h: 1 + (b[27] | (b[28] << 8) | (b[29] << 16)) };
+    }
+  }
+  return null;
+}
+
+// Was die App selbst erzeugt: höchstens 1600 bzw. 400 Pixel – mit etwas Spielraum
+export const MAX_EDGE = { full: 1700, thumb: 450 };
+
+/**
+ * Prüft entschlüsselte Bytes vor dem Anzeigen: nur WebP/JPEG und nur bis maxEdge Pixel Kantenlänge.
+ * Schützt vor „Bildbomben“ (winzige Datei, riesige Maße), die andere Geräte beim Entpacken lahmlegen.
+ */
+export function checkImage(bytes, maxEdge) {
+  const kind = sniff(bytes);
+  const size = kind ? imageSize(bytes) : null;
+  if (!size || size.w < 1 || size.h < 1 || size.w > maxEdge || size.h > maxEdge) return null;
+  return { kind, ...size };
+}
+
 /** Zielgröße: lange Kante höchstens edge, nie vergrößern. */
 export function fitSize(w, h, edge) {
   const s = Math.min(1, edge / Math.max(w, h));
@@ -107,7 +159,7 @@ async function encode(src, edge, maxBytes) {
       if (!blob || blob.type !== 'image/webp') blob = await canvasBlob(canvas, 'image/jpeg', q);
       if (blob && blob.size <= maxBytes) {
         const bytes = new Uint8Array(await blob.arrayBuffer());
-        if (!sniff(bytes)) throw new Error(t('Das Foto ließ sich nicht umwandeln.'));
+        if (!checkImage(bytes, Math.max(edge, 1) + 1)) throw new Error(t('Das Foto ließ sich nicht umwandeln.'));
         return { bytes, type: sniff(bytes), w: size.w, h: size.h };
       }
     }
@@ -155,6 +207,17 @@ export function readMeta(raw) {
   };
 }
 
+/** Name der hochladenden Person aus ihrem Teilnehmer-Eintrag; „?“, wenn er sich nicht lesen lässt. */
+async function authorName(kRound, roundId, f) {
+  if (typeof f.pid !== 'string' || typeof f.nameCt !== 'string') return '?';
+  try {
+    const n = await C.decryptJson(kRound, f.nameCt, ['name', roundId, f.pid]);
+    return typeof n === 'string' && n.trim() ? cleanCaption(n).slice(0, 80) : '?';
+  } catch {
+    return '?';
+  }
+}
+
 /** Liste entschlüsseln: Vorschau als Blob-URL (nur bei gültiger Kennung), Metadaten. */
 export async function openList(kRound, roundId, photos) {
   const out = [];
@@ -163,9 +226,11 @@ export async function openList(kRound, roundId, photos) {
     let thumbUrl = null;
     try {
       meta = readMeta(await C.decryptJson(kRound, f.metaCt, AAD.meta(roundId, f.id)));
+      // Name aus der Teilnehmerliste (vom Server der hochladenden Person zugeordnet), nicht der selbst eingetragene
+      if (meta) meta.name = await authorName(kRound, roundId, f);
       const bytes = await C.decryptBytes(kRound, f.thumbCt, AAD.thumb(roundId, f.id));
-      const kind = sniff(bytes);
-      if (kind) thumbUrl = URL.createObjectURL(new Blob([bytes], { type: `image/${kind}` }));
+      const ok = checkImage(bytes, MAX_EDGE.thumb);
+      if (ok) thumbUrl = URL.createObjectURL(new Blob([bytes], { type: `image/${ok.kind}` }));
     } catch { /* unlesbar */ }
     out.push({ id: f.id, at: f.at, own: Boolean(f.own), pid: f.pid ?? null, bytes: f.bytes, meta, thumbUrl, broken: !meta || !thumbUrl });
   }
@@ -176,9 +241,9 @@ export async function openList(kRound, roundId, photos) {
 export async function openFull(kRound, roundId, id, path, auth) {
   const { photoCt } = await api('GET', path, { auth });
   const bytes = await C.decryptBytes(kRound, photoCt, AAD.photo(roundId, id));
-  const kind = sniff(bytes);
-  if (!kind) throw new Error(t('Diese Datei ist kein lesbares Foto.'));
-  return { blob: new Blob([bytes], { type: `image/${kind}` }), kind };
+  const ok = checkImage(bytes, MAX_EDGE.full);
+  if (!ok) throw new Error(t('Diese Datei ist kein lesbares Foto.'));
+  return { blob: new Blob([bytes], { type: `image/${ok.kind}` }), kind: ok.kind };
 }
 
 export const loadMine = (pctx) => api('GET', '/me/photos', { auth: authP(pctx) });

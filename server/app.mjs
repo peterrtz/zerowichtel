@@ -277,6 +277,19 @@ export class App {
     return { available: a.enabled, personPhotos: a.person_photos, roundBytes: a.round_mb * 1024 * 1024, photoBytes: PHOTO_MAX, thumbBytes: THUMB_MAX };
   }
 
+  /**
+   * Vorprüfung vor dem Lesen eines Foto-Uploads (Sicherheitsprüfung 2.13, Nr. 4): Nur mit gültigem Teilnehmerzugang,
+   * Zusage und eingeschaltetem Album darf die Anfrage größer als 64 KB sein. Ohne gilt die normale Grenze.
+   */
+  photoUploadAllowed(auth) {
+    try {
+      const [p, round] = this.albumPerson({ auth });
+      return Boolean(p && round);
+    } catch {
+      return false;
+    }
+  }
+
   albumSettings(req, roundId) {
     const round = this.adminRound(req, roundId);
     const enabled = get(req.body, 'enabled');
@@ -296,13 +309,22 @@ export class App {
     return [p, round];
   }
 
+  /**
+   * Fotoliste. pid und nameCt (verschlüsselter Name aus der Teilnehmerliste) der hochladenden Person: Die App zeigt
+   * diesen Namen statt einer selbst eingetragenen Angabe – so kann niemand unter fremdem Namen posten. Der Name
+   * steht beim Foto ohnehin; die Personen-ID verrät darüber hinaus nichts.
+   */
   photoList(roundId, ownPid = null) {
-    return all(this.db, 'SELECT id, pid, created_at, bytes, thumb, meta_ct FROM photos WHERE round_id = ? ORDER BY created_at, rowid', roundId)
+    return all(this.db, `SELECT f.id, f.pid, f.created_at, f.bytes, f.thumb, f.meta_ct, p.name_ct
+                           FROM photos f LEFT JOIN participants p ON p.id = f.pid
+                          WHERE f.round_id = ? ORDER BY f.created_at, f.rowid`, roundId)
       .map((f) => ({
         id: f.id,
         at: f.created_at,
         bytes: f.bytes,
         own: ownPid !== null && f.pid === ownPid,
+        pid: f.pid,
+        nameCt: f.name_ct ?? null,
         thumbCt: `v1.${Buffer.from(f.thumb).toString('base64url')}`,
         metaCt: f.meta_ct,
       }));
@@ -317,6 +339,7 @@ export class App {
 
   myPhotos(req) {
     const [p, round] = this.albumPerson(req);
+    this.limiter.hit('photo_read', req.ip, this.now());
     return json({ photos: this.photoList(round.id, p.id), usage: this.usage(round.id, p.id), limits: this.albumLimits() });
   }
 
@@ -348,6 +371,8 @@ export class App {
 
   myPhoto(req, fid) {
     const [, round] = this.albumPerson(req);
+    // eigene, engere Grenze für Fotoabrufe (bis ~800 KB je Antwort; Sicherheitsprüfung 2.13, Nr. 3)
+    this.limiter.hit('photo_read', req.ip, this.now());
     return this.photoOut(round.id, fid);
   }
 
@@ -361,9 +386,9 @@ export class App {
 
   adminPhotos(req, roundId) {
     const round = this.adminRound(req, roundId);
-    const pids = new Map(all(this.db, 'SELECT id, pid FROM photos WHERE round_id = ?', round.id).map((f) => [f.id, f.pid]));
+    this.limiter.hit('photo_read', req.ip, this.now());
     return json({
-      photos: this.photoList(round.id).map((f) => ({ ...f, pid: pids.get(f.id) ?? null })),
+      photos: this.photoList(round.id),
       usage: this.usage(round.id, null),
       limits: this.albumLimits(),
     });
@@ -371,6 +396,7 @@ export class App {
 
   adminPhoto(req, roundId, fid) {
     const round = this.adminRound(req, roundId);
+    this.limiter.hit('photo_read', req.ip, this.now());
     return this.photoOut(round.id, fid);
   }
 

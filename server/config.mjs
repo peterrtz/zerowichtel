@@ -32,6 +32,7 @@ export const DEFAULTS = {
     analog: [5, 86400], // Zähler „analoge Wichtelrunde vorbereitet“ je Anschluss und Tag
     question_anon: [3, 86400], // anonyme Rückfragen je Anschluss und Tag (2.9)
     photo: [60, 86400], // Foto-Uploads je Anschluss und Tag (2.13)
+    photo_read: [600, 3600], // Abrufe von Fotos und Fotolisten je Anschluss und Stunde (2.13)
   },
   client_ip_header: null, // z. B. 'X-Forwarded-For' hinter einem Reverse Proxy
   operator: { name: '', street: '', city: '', email: '', phone: '' },

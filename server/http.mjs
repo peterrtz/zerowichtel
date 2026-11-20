@@ -87,7 +87,12 @@ export function createServer({ getApp, files, setTestNow = null }) {
       data ? Buffer.from(JSON.stringify(data)) : null);
     let body = {};
     try {
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) body = parseBody(await readBody(req, req.method === 'POST' && path === '/me/photos' ? MAX_PHOTO_BODY : MAX_BODY));
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        // Große Anfragen nur für Foto-Uploads mit gültigem Teilnehmerzugang (vorab geprüft, bevor gelesen wird)
+        const auth0 = typeof req.headers['x-zw-auth'] === 'string' ? req.headers['x-zw-auth'] : null;
+        const big = req.method === 'POST' && path === '/me/photos' && app.photoUploadAllowed(auth0);
+        body = parseBody(await readBody(req, big ? MAX_PHOTO_BODY : MAX_BODY));
+      }
     } catch (e) {
       if (e instanceof HttpError) return reply(e.status, { error: e.code, message: e.message });
       throw e;

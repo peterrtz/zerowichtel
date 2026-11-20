@@ -1736,7 +1736,8 @@ test('2.13: Adventsalbum – Schalter, Sichtbarkeit, Grenzen, Rechte, Löschen',
   [, d] = await e.call('GET', '/me/photos', null, b.auth);
   eq(5, d.photos.length);
   eq(2, d.photos.filter((f) => f.own).length);
-  ok(!JSON.stringify(d).includes(a.pid) && !d.photos.some((f) => 'pid' in f), 'keine Personen-IDs für Teilnehmende');
+  // seit der Sicherheitsprüfung: Personen-ID der hochladenden Person, damit die App den echten Namen zeigt
+  eq(3, d.photos.filter((f) => f.pid === a.pid).length, 'Personen-ID der hochladenden Person');
   eq(big.thumbCt, d.photos.find((f) => f.id === big.id).thumbCt, 'Vorschau unverändert');
   eq(big.photoCt, (await e.call('GET', `/me/photos/${big.id}`, null, b.auth))[1].photoCt, 'Foto unverändert');
   eq(404, await e.status('GET', `/me/photos/${nid()}`, null, b.auth));
@@ -1769,6 +1770,34 @@ test('2.13: Adventsalbum – Schalter, Sichtbarkeit, Grenzen, Rechte, Löschen',
   // Runde löschen löscht die Fotos
   eq(204, await e.status('DELETE', `/rounds/${r.id}`, null, r.admin));
   eq(0, e.count(`SELECT COUNT(*) FROM photos WHERE round_id = '${r.id}'`));
+});
+
+test('2.13: Sicherheitsprüfung – Name aus der Teilnehmerliste, eigene Lesegrenze, große Anfragen nur mit Zugang', async () => {
+  const e = await Env.make({ album: { enabled: true, round_mb: 60, person_photos: 12 }, rateLimits: { photo_read: [5, 3600] } });
+  const r = await e.round();
+  const a = await e.person(r);
+  a.auth = await e.claim(a);
+  const c = await e.person(r);
+  c.auth = await e.claim(c);
+  eq(200, await e.status('PUT', '/me/rsvp', { rsvp: 'dabei' }, a.auth));
+  const big = () => ({ id: nid(), photoCt: ct(300 * 1024), thumbCt: ct(1000), metaCt: ct(80) });
+  // Nr. 4: ohne gültigen Zugang, ohne Zusage oder bei Album aus gilt die normale Grenze (64 KB) → 413
+  eq(413, await e.status('POST', '/me/photos', big(), null), 'ohne Zugang');
+  eq(413, await e.status('POST', '/me/photos', big(), `p.${a.pid}.${nid()}`), 'falscher Zugang');
+  eq(413, await e.status('POST', '/me/photos', big(), a.auth), 'Album aus');
+  eq(204, await e.status('PUT', `/rounds/${r.id}/album`, { enabled: true, pdf: false }, r.admin));
+  eq(413, await e.status('POST', '/me/photos', big(), c.auth), 'nicht zugesagt');
+  const f = big();
+  eq(201, await e.status('POST', '/me/photos', f, a.auth), 'mit Zugang, Zusage und Album an');
+  // Nr. 2: Liste enthält Personen-ID und verschlüsselten Namen aus der Teilnehmerliste
+  const nameCt = e.sql('SELECT name_ct FROM participants WHERE id = ?', a.pid)[0].name_ct;
+  let [s, d] = await e.call('GET', '/me/photos', null, a.auth);
+  eq([200, a.pid, nameCt], [s, d.photos[0].pid, d.photos[0].nameCt]);
+  // Nr. 3: eigene Lesegrenze für Fotos (hier 5 je Stunde: 1 Liste + 4 Abrufe, dann 429)
+  for (let i = 0; i < 4; i++) eq(200, await e.status('GET', `/me/photos/${f.id}`, null, a.auth), `Abruf ${i + 1}`);
+  [s, d] = await e.call('GET', `/me/photos/${f.id}`, null, a.auth);
+  eq(429, s, `Grenze ${JSON.stringify(d)}`);
+  eq(200, await e.status('GET', '/me', null, a.auth), 'andere Lesewege unberührt');
 });
 
 test('2.13: Adventsalbum serverweit abgeschaltet', async () => {

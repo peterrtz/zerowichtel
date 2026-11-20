@@ -81,8 +81,8 @@ IDs und Tokens: 22 Zeichen Base64url (128 Bit). Gespeichert wird nur SHA-256 (he
 | `PUT /rounds/{id}/album` | a | Adventsalbum: `{enabled, pdf}` (Wahrheitswerte); Einschalten nur, wenn `album.enabled` in der Konfiguration |
 | `GET /rounds/{id}/photos` | a | alle Fotos der Runde mit `pid` (für die Namen), Vorschau-Chiffretext, Metadaten-Chiffretext, Größe, Zeitpunkt; dazu Verbrauch und Grenzen |
 | `GET` / `DELETE /rounds/{id}/photos/{fid}` | a | großes Foto (Chiffretext) bzw. löschen |
-| `GET /me/photos` | p | wie oben, aber ohne `pid`, stattdessen `own`; nur bei Album an und Zusage „dabei“ |
-| `POST /me/photos` | p | `{id, photoCt, thumbCt, metaCt}` – Foto höchstens 600 KB, Vorschau 48 KB (nach dem Dekodieren), als Bytes gespeichert; eigene Anfragegrenze 1,1 MB nur für diesen Weg (`MAX_PHOTO_BODY`); Grenzen je Person und Runde aus `album`; Ratenbegrenzung `photo` |
+| `GET /me/photos` | p | wie oben, zusätzlich `own`; `pid` und `nameCt` (Name aus der Teilnehmerliste) der hochladenden Person, damit die App den echten Namen zeigt; nur bei Album an und Zusage „dabei“; Ratenbegrenzung `photo_read` (auch für die Abrufe einzelner Fotos und die Organisator-Ansicht) |
+| `POST /me/photos` | p | `{id, photoCt, thumbCt, metaCt}` – Foto höchstens 600 KB, Vorschau 48 KB (nach dem Dekodieren), als Bytes gespeichert; eigene Anfragegrenze 1,1 MB nur für diesen Weg (`MAX_PHOTO_BODY`) und nur, wenn `photoUploadAllowed` vor dem Lesen einen gültigen Zugang mit Zusage bei eingeschaltetem Album findet; Grenzen je Person und Runde aus `album`; Ratenbegrenzung `photo` |
 | `GET` / `DELETE /me/photos/{fid}` | p | großes Foto bzw. eigenes löschen (Löschen auch nach Absage oder bei ausgeschaltetem Album) |
 | `GET /ideas` | – | Geschenkvorschläge des Ideen-Würfels: `{mode, items}`; bei `builtin` leere Liste (die App hat die Standardliste selbst) |
 | `PUT /admin/{slug}/ideas` | x | Geschenkvorschläge: `{mode: builtin\|extend\|replace, items: [{max: 5\|10\|20\|30\|50\|null, de, en, minAge, maxAge}]}` (Alter ab 2.13: 0–99, `maxAge` null oder ≥ `minAge`), höchstens 200 × 120 Zeichen (`server/ideas.mjs`), gespeichert in `meta` (`ideas`) |

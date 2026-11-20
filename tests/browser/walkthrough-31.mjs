@@ -212,51 +212,68 @@ try {
     if (await c.$('#adventsalbum .album-thumb')) problems.push('Cleo sieht Fotos');
   });
 
-  await step('Fremde Daten statt Foto (gültig verschlüsselt): wird nicht angezeigt', async () => {
+  await step('Fremde Daten, Bildbombe und falscher Name (direkt über die Schnittstelle): abgewiesen bzw. echter Name', async () => {
     const a = pages.Anna;
     await a.bringToFront();
-    const res = await a.evaluate(async (hash) => {
+    const bomb = readFileSync(join(FIX, 'bildbombe.webp')).toString('base64');
+    const small = readFileSync(join(FIX, '..', '..', 'js', 'images.fixture.mjs'), 'utf8').match(/"jpeg": "([^"]+)"/)[1];
+    const res = await a.evaluate(async (hash, bombB64, smallB64) => {
       const { parseFragment } = await import('/js/lib/links.js');
       const C = await import('/js/lib/crypto.js');
       const P = await import('/js/lib/photos.js');
       const { api } = await import('/js/lib/api.js');
       const ctx = parseFragment(hash);
-      const id = C.newId();
+      const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const post = async (photo, thumb, meta) => {
+        const id = C.newId();
+        await api('POST', '/me/photos', {
+          auth: `p.${ctx.pid}.${ctx.accessToken}`,
+          body: {
+            id,
+            photoCt: await C.encryptBytes(ctx.kRound, photo, P.AAD.photo(ctx.roundId, id)),
+            thumbCt: await C.encryptBytes(ctx.kRound, thumb, P.AAD.thumb(ctx.roundId, id)),
+            metaCt: await C.encryptJson(ctx.kRound, { v: 1, name: 'Anna', ...meta }, P.AAD.meta(ctx.roundId, id)),
+          },
+        });
+      };
       const junk = new TextEncoder().encode('<script>alert(1)</script>'.repeat(20));
-      await api('POST', '/me/photos', {
-        auth: `p.${ctx.pid}.${ctx.accessToken}`,
-        body: {
-          id,
-          photoCt: await C.encryptBytes(ctx.kRound, junk, P.AAD.photo(ctx.roundId, id)),
-          thumbCt: await C.encryptBytes(ctx.kRound, junk, P.AAD.thumb(ctx.roundId, id)),
-          metaCt: await C.encryptJson(ctx.kRound, { v: 1, caption: 'Kein Bild', name: 'Anna' }, P.AAD.meta(ctx.roundId, id)),
-        },
-      });
+      await post(junk, junk, { caption: 'Kein Bild' });
+      // 5,5 KB, aber 12000 × 12000 Pixel: würde ausgepackt rund 576 MB belegen
+      await post(bytes(bombB64), bytes(bombB64), { caption: 'Bildbombe' });
+      // gültiges Bild, aber als „Benedikt“ ausgegeben
+      await post(bytes(smallB64), bytes(smallB64), { caption: 'Gefälscht', name: 'Benedikt' });
       return Object.keys(ctx);
-    }, await a.evaluate(() => location.hash));
+    }, await a.evaluate(() => location.hash), bomb, small);
     if (!res.includes('kRound')) problems.push(`Link-Kontext: ${res}`);
     await a.reload();
-    await a.waitForFunction(() => document.querySelectorAll('#adventsalbum .album-thumb').length === 3, { timeout: 10000 });
+    await a.waitForFunction(() => document.querySelectorAll('#adventsalbum .album-thumb').length === 5, { timeout: 10000 });
     const broken = await a.$$eval('#adventsalbum .album-thumb', (b) => b.filter((x) => x.querySelector('.album-broken')).length);
-    if (broken !== 1) problems.push(`Unlesbare Datei nicht als solche markiert (${broken})`);
+    if (broken !== 2) problems.push(`Unlesbare Datei und Bildbombe nicht als unlesbar markiert (${broken} statt 2)`);
     const imgs = await a.$$eval('#adventsalbum .album-thumb img', (i) => i.length);
-    if (imgs !== 2) problems.push(`${imgs} Bilder angezeigt`);
+    if (imgs !== 3) problems.push(`${imgs} Bilder angezeigt statt 3`);
+    const fake = await a.$$eval('#adventsalbum .album-cap', (c) => c.map((x) => x.textContent).find((x) => x.includes('Gefälscht')));
+    if (!fake || !fake.includes('Anna') || fake.includes('Benedikt')) problems.push(`Falscher Name übernommen: ${fake}`);
   });
 
-  await step('Organisator:in sieht alle Fotos mit Namen, löscht ein Foto und die unlesbare Datei', async () => {
+  await step('Organisator:in sieht alle Fotos mit Namen, löscht ein Foto, die unlesbaren Dateien und die Fälschung', async () => {
     await admin.bringToFront();
     await admin.reload();
     await waitText(admin, 'Teilnehmende');
     await admin.evaluate(() => { document.getElementById('adventsalbum-admin').open = true; });
-    await admin.waitForFunction(() => document.querySelectorAll('#adventsalbum-admin .album-thumb').length === 3, { timeout: 10000 });
-    await admin.evaluate(() => [...document.querySelectorAll('#adventsalbum-admin .album-thumb')].find((x) => x.getAttribute('aria-label').includes('Benedikt')).click());
-    await admin.waitForSelector('dialog.album-viewer');
-    // Bestätigungsdialoge nimmt newPage() automatisch an
-    await admin.evaluate(() => [...document.querySelectorAll('dialog.album-viewer button')].find((x) => x.textContent === 'Foto löschen').click());
-    await waitText(admin, 'Foto gelöscht.');
-    await admin.waitForFunction(() => document.querySelectorAll('#adventsalbum-admin .album-thumb').length === 2, { timeout: 10000 });
-    await admin.evaluate(() => document.querySelector('#adventsalbum-admin .album-thumb .album-broken').closest('button').click());
-    await admin.waitForFunction(() => document.querySelectorAll('#adventsalbum-admin .album-thumb').length === 1, { timeout: 10000 });
+    await admin.waitForFunction(() => document.querySelectorAll('#adventsalbum-admin .album-thumb').length === 5, { timeout: 10000 });
+    for (const who of ['Benedikt', 'Gefälscht']) {
+      const n0 = await admin.$$eval('#adventsalbum-admin .album-thumb', (x) => x.length);
+      await admin.evaluate((w) => [...document.querySelectorAll('#adventsalbum-admin .album-thumb')].find((x) => x.getAttribute('aria-label').includes(w)).click(), who);
+      await admin.waitForSelector('dialog.album-viewer');
+      // Bestätigungsdialoge nimmt newPage() automatisch an
+      await admin.evaluate(() => [...document.querySelectorAll('dialog.album-viewer button')].find((x) => x.textContent === 'Foto löschen').click());
+      await admin.waitForFunction((n) => document.querySelectorAll('#adventsalbum-admin .album-thumb').length === n - 1, { timeout: 10000 }, n0);
+    }
+    for (let k = 0; k < 2; k++) {
+      const n0 = await admin.$$eval('#adventsalbum-admin .album-thumb', (x) => x.length);
+      await admin.evaluate(() => document.querySelector('#adventsalbum-admin .album-thumb .album-broken').closest('button').click());
+      await admin.waitForFunction((n) => document.querySelectorAll('#adventsalbum-admin .album-thumb').length === n - 1, { timeout: 10000 }, n0);
+    }
     const n = JSON.parse(srv.sql('SELECT COUNT(*) AS n FROM photos'))[0].n;
     if (n !== 1) problems.push(`${n} Fotos nach dem Löschen`);
   });
