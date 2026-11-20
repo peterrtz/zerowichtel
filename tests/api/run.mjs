@@ -797,6 +797,83 @@ test23('Anlegen ohne Code: Admin-Einstellung, Obergrenze gleichzeitiger Runden, 
   ok(ov.log.some((l) => l.event === 'Anlegen ohne Code' && /höchstens 2/.test(l.detail)), 'protokolliert');
 });
 
+test23('Unterstützungslink (2.12) – Admin-Einstellung, Prüfung, öffentlich nur eingeschaltet, Kommandozeile', async () => {
+  const a = await adminEnv();
+  const e = a.env;
+  const [, d] = await adminLogin(a);
+  const session = d.session;
+  const put = (b, auth = session) => e.call('PUT', `/admin/${a.slug}/donation`, b, auth);
+  const URL1 = 'https://sharethemeal.org/challenges/00000000-0000-4000-8000-000000000000?hl=de-DE';
+  let [, info] = await e.call('GET', '/info');
+  eq(null, info.donation, 'Standard: aus');
+  let [, ov] = await e.call('GET', `/admin/${a.slug}/overview`, null, session);
+  eq({ enabled: false, url: '', label: '', note: '', inRounds: false }, ov.donation);
+  // Nur mit Admin-Sitzung
+  eq(401, (await put({ enabled: true, url: URL1 }, null))[0]);
+  // Prüfung
+  for (const [b, why] of [
+    [{ enabled: true, url: '' }, 'an ohne Adresse'],
+    [{ enabled: true, url: 'http://example.org/x' }, 'nur https'],
+    [{ enabled: true, url: 'javascript:alert(1)' }, 'javascript'],
+    [{ enabled: true, url: 'https://user:pw@example.org/' }, 'Zugangsdaten'],
+    [{ enabled: true, url: 'https://192.168.1.1/' }, 'IP-Adresse'],
+    [{ enabled: true, url: 'https://localhost/' }, 'lokaler Name'],
+    [{ enabled: true, url: 'https://example.org/ a' }, 'Leerzeichen'],
+    [{ enabled: true, url: `https://example.org/${'x'.repeat(500)}` }, 'zu lang'],
+    [{ enabled: true, url: URL1, label: 'x'.repeat(41) }, 'Linktext zu lang'],
+    [{ enabled: true, url: URL1, note: 'x'.repeat(201) }, 'Hinweis zu lang'],
+    [{ enabled: true, url: URL1, label: 'a\u0007b' }, 'Steuerzeichen'],
+    [{ enabled: true, url: URL1, label: { x: 1 } }, 'kein Text'],
+    [{ enabled: 'ja', url: URL1 }, 'enabled kein Wahrheitswert'],
+    [{ url: URL1 }, 'enabled fehlt'],
+    [{ enabled: true, url: URL1, inRounds: 'ja' }, 'inRounds kein Wahrheitswert'],
+  ]) eq(400, (await put(b))[0], why);
+  [, info] = await e.call('GET', '/info');
+  eq(null, info.donation, 'nach Fehlern weiter aus');
+  // Gültig
+  let [s, r] = await put({ enabled: true, url: URL1, label: '  Mahlzeit   teilen ', note: 'Statt eines Kaffees: eine Mahlzeit.' });
+  eq([200, true, URL1, 'Mahlzeit teilen'], [s, r.donation.enabled, r.donation.url, r.donation.label]);
+  [, info] = await e.call('GET', '/info');
+  eq({ url: URL1, label: 'Mahlzeit teilen', note: 'Statt eines Kaffees: eine Mahlzeit.', inRounds: false }, info.donation, 'ohne Angabe nicht in den Runden');
+  [, r] = await put({ enabled: true, url: URL1, label: 'Mahlzeit teilen', note: '', inRounds: true });
+  eq(true, r.donation.inRounds);
+  eq(true, (await e.call('GET', '/info'))[1].donation.inRounds, 'in den Runden');
+  // Leerer Linktext bleibt leer (die App übersetzt den Standardtext)
+  [, r] = await put({ enabled: true, url: 'https://Example.org', label: '', note: '' });
+  eq(['https://example.org/', ''], [r.donation.url, r.donation.label], 'normalisiert');
+  // Aus: Adresse bleibt gespeichert, öffentlich nichts
+  [s, r] = await put({ enabled: false, url: URL1, label: 'X', note: '' });
+  eq([200, false, URL1], [s, r.donation.enabled, r.donation.url]);
+  [, info] = await e.call('GET', '/info');
+  eq(null, info.donation, 'aus = nicht öffentlich');
+  eq(200, (await put({ enabled: false, url: '', label: '', note: '' }))[0], 'aus ohne Adresse erlaubt');
+  [, ov] = await e.call('GET', `/admin/${a.slug}/overview`, null, session);
+  ok(ov.log.some((l) => l.event === 'Unterstützungslink' && /an – „Mahlzeit teilen“ → sharethemeal\.org/.test(l.detail)), 'protokolliert (nur Host)');
+  ok(!ov.log.some((l) => /00000000-0000/.test(l.detail ?? '')), 'keine vollständige Adresse im Protokoll');
+  // Kaputter Eintrag in der Datenbank → nichts anzeigen, kein Absturz
+  e.s.exec(`UPDATE meta SET value = '{"enabled":true,"url":"javascript:alert(1)"}' WHERE key = 'donation'`);
+  [, info] = await e.call('GET', '/info');
+  eq(null, info.donation, 'ungültiger Eintrag wird ignoriert');
+  // Kommandozeile
+  let c = e.s.cli('donation', 'set', '--url', URL1, '--label', 'Spenden', '--rounds', 'on');
+  eq(0, c.status, c.out);
+  ok(/an – „Spenden“ → sharethemeal\.org/.test(c.out), c.out);
+  [, info] = await e.call('GET', '/info');
+  eq(['Spenden', true], [info.donation.label, info.donation.inRounds]);
+  ok(e.s.cli('donation', 'set', '--rounds', 'vielleicht').status !== 0, '--rounds geprüft');
+  eq(0, e.s.cli('donation', 'set', '--rounds', 'off').status);
+  eq([URL1, false], [(await e.call('GET', '/info'))[1].donation.url, (await e.call('GET', '/info'))[1].donation.inRounds], 'set ohne --url behält Adresse');
+  c = e.s.cli('donation', 'set', '--url', 'http://example.org');
+  ok(c.status !== 0 && /https/.test(c.out), `CLI lehnt http ab: ${c.out}`);
+  eq('Spenden', (await e.call('GET', '/info'))[1].donation.label, 'nach Fehler unverändert');
+  c = e.s.cli('donation', 'off');
+  eq(0, c.status);
+  eq(null, (await e.call('GET', '/info'))[1].donation);
+  c = e.s.cli('donation', 'on');
+  eq(URL1, (await e.call('GET', '/info'))[1].donation.url, 'on mit gespeicherter Adresse');
+  ok(/Adresse: https:\/\/sharethemeal/.test(e.s.cli('donation').out));
+});
+
 test23('Anlegen ohne Code mit E-Mail erlaubt; nachträgliches Einschalten bei gesperrter E-Mail abgelehnt', async () => {
   const a = await adminEnv();
   const e = a.env;

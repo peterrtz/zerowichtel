@@ -21,6 +21,7 @@ const SHELL = [
   'js/lib/analog-round.js',
   'js/lib/questions.js',
   'js/lib/mixtape.js',
+  'js/lib/donation.js',
   'js/lib/editor.js',
   'js/lib/en.js',
   'js/lib/i18n.js',

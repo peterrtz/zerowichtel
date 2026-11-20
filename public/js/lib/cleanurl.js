@@ -17,7 +17,7 @@ const EXACT = new Set([
   'spm', 'scm', 'algo_pvid', 'algo_exp_id', 'aff_fcid', 'aff_fsk', 'aff_platform', 'aff_trace_key', 'sk', 'terminal_id', 'ga_order', 'ga_search_query', 'ga_search_type', 'ga_view_type',
   'click_key', 'click_sum', 'organic_search_click', 'ls', 'sts', 'pro', 'frs',
 ]);
-const PREFIX = ['utm_', 'mc_', 'pk_', 'mtm_', 'matomo_', 'hmb_', 'ga_', 'oly_', '_bta_', 'awc', 'trk_', 'itm_', 'cmpid', 'ws_ab_test', '_trk'];
+const PREFIX = ['utm_', 'adjust_', 'mc_', 'pk_', 'mtm_', 'matomo_', 'hmb_', 'ga_', 'oly_', '_bta_', 'awc', 'trk_', 'itm_', 'cmpid', 'ws_ab_test', '_trk'];
 // Nur bei diesen Shops gelten auch allgemein klingende Namen als Tracking (sonst könnten sie zum Produkt gehören).
 const SHOP_ONLY = new Set(['th', 'psc', 'sr', 'qid', 'crid', 'sprefix', 'smid', 'spla', 'hash', 'var', 'sk', 'ls', 'sts', 'pro', 'frs', 'tag', 'camp', 'creative', 'dib', 'dib_tag', 'content-id']);
 const SHOPS = /(^|\.)(amazon\.[a-z.]+|amzn\.[a-z]+|ebay\.[a-z.]+|aliexpress\.[a-z.]+|etsy\.com)$/i;

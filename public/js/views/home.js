@@ -3,6 +3,7 @@ import { listLinks, removeLink, storageAvailable } from '../lib/store.js';
 import { formatShort } from '../lib/dates.js';
 import { page, card, mount, setTitle, notice } from './common.js';
 import { t } from '../lib/i18n.js';
+import { donationCard } from '../lib/donation.js';
 
 export function renderHome(root) {
   setTitle('');
@@ -33,6 +34,9 @@ export function renderHome(root) {
     ));
   }
 
+  // Unterstützungslink des Betreibers (2.12), nur falls eingeschaltet; kommt nachträglich, blockiert nichts
+  const support = donationCard(card);
+
   mount(root, page(
     h('section', { class: 'hero' },
       h('h1', null, t('Wichteln ohne Konto.'), h('br'), h('span', { class: 'accent' }, t('Und ohne Datenspur.'))),
@@ -57,5 +61,6 @@ export function renderHome(root) {
         h('a', { href: '#wuerfel' }, t('Nur Schrottwichteln würfeln – ganz ohne Runde →')), h('br'),
         h('a', { href: '#analog' }, t('Analoge Wichtelrunde zum Ausdrucken – ganz ohne Handy →'))),
     ),
+    support,
   ));
 }

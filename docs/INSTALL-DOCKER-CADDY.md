@@ -36,7 +36,7 @@ Ab 2.0 läuft ZeroWichtel mit Node.js statt PHP. Für dich ändert sich fast nic
 
 ```yaml
 update_1x_auf_2_0:
-  befehl: sudo bash install-docker-caddy.sh zerowichtel-2.6.0.zip
+  befehl: sudo bash install-docker-caddy.sh zerowichtel-2.12.0.zip
   konfiguration: config/config.php wird automatisch nach config/config.json übernommen (Serverschlüssel, Mail, Betreiber, Admin)
   alte_datei: config/config.php.1x               # bleibt nur für einen Rückfall liegen
   datenbank: unverändert weiterverwendet          # Runden, Adressen, Admin-Zugang, Codes, Notfallcodes
@@ -84,21 +84,21 @@ dig +short wichteln.example.org
 
 ## 2. Paket hochladen und Skript starten
 
-Das Paket `zerowichtel-2.6.0.zip` von der [Release-Seite](https://github.com/peterrtz/zerowichtel/releases) laden und die dort genannte SHA-256-Prüfsumme vergleichen (`sha256sum zerowichtel-2.6.0.zip`).
+Das Paket `zerowichtel-2.12.0.zip` von der [Release-Seite](https://github.com/peterrtz/zerowichtel/releases) laden und die dort genannte SHA-256-Prüfsumme vergleichen (`sha256sum zerowichtel-2.12.0.zip`).
 
 Vom eigenen Rechner:
 
 ```sh
-scp -i ~/.ssh/<dein-key> zerowichtel-2.6.0.zip <benutzer>@<server>:~
+scp -i ~/.ssh/<dein-key> zerowichtel-2.12.0.zip <benutzer>@<server>:~
 ```
 
 Auf dem Server:
 
 ```sh
 cd ~
-unzip -o -j zerowichtel-2.6.0.zip deploy/install-docker-caddy.sh -d .
-sudo DOMAIN=wichteln.example.org bash install-docker-caddy.sh zerowichtel-2.6.0.zip   # erste Installation
-sudo bash install-docker-caddy.sh zerowichtel-2.6.0.zip                               # Update: Domain kommt aus config.json
+unzip -o -j zerowichtel-2.12.0.zip deploy/install-docker-caddy.sh -d .
+sudo DOMAIN=wichteln.example.org bash install-docker-caddy.sh zerowichtel-2.12.0.zip   # erste Installation
+sudo bash install-docker-caddy.sh zerowichtel-2.12.0.zip                               # Update: Domain kommt aus config.json
 ```
 
 Bei der ersten Installation muss `DOMAIN=` angegeben werden (es gibt keinen Standardwert). Bei einem Update liest das Skript die Domain aus `base_url` der vorhandenen `config/config.json`.
@@ -188,7 +188,7 @@ admin_bereich:
   sperre: nach 5 Fehlversuchen 15 Minuten, für alle
   sitzung: 30 Minuten fest, nur im geöffneten Tab, keine Cookies
   adresse: geheimer Pfad; falsch, ausgeschaltet oder nicht eingerichtet = 404 wie jede unbekannte Adresse
-  kann: Codes erzeugen (mit Teilen-Menü, QR und Direktlink), auflisten, widerrufen; Zähler; Protokoll ohne IP
+  kann: Codes erzeugen (mit Teilen-Menü, QR und Direktlink), auflisten, widerrufen; Anlegen ohne Code; Unterstützungslink; Zähler; Protokoll ohne IP
   kann_nicht: Runden, Namen, Wünsche, Zuordnungen sehen; config.json ändern
 ```
 
@@ -205,6 +205,27 @@ Weitere Befehle (alle mit `sudo docker exec -it zerowichtel zw admin …`):
 | `unlock` | Sperre nach Fehlversuchen sofort aufheben |
 | `remove` | Admin-Zugang vollständig entfernen |
 
+Unterstützungslink (ab 2.12) ohne Admin-Bereich, direkt auf der Konsole:
+
+```sh
+sudo docker exec zerowichtel zw donation set --url https://example.org/spenden --label "Unterstützen" --note "ZeroWichtel ist kostenlos." --rounds on
+sudo docker exec zerowichtel zw donation          # Stand anzeigen
+sudo docker exec zerowichtel zw donation off      # ausblenden (Adresse bleibt gespeichert), „on“ blendet wieder ein
+```
+
+```yaml
+unterstuetzungslink:
+  anzeige: Fußzeile auf allen Seiten und eine kleine Karte auf der Startseite
+  in_den_runden: optional (--rounds on bzw. Häkchen im Admin-Bereich) dieselbe Karte ganz unten auf Teilnehmer- und Verwaltungsseite
+  adresse: nur https, ohne Zugangsdaten, mit Domainnamen (keine IP, kein localhost), höchstens 500 Zeichen
+  linktext: optional, höchstens 40 Zeichen; leer = „Unterstützen“ / „Support“ je nach Sprache
+  hinweis: optional, höchstens 200 Zeichen, nur auf der Startseite
+  verhalten: gewöhnlicher Link, neuer Tab, rel="noopener noreferrer", kein Referrer, nichts eingebettet oder vorab geladen
+  tracking: Admin-Bereich warnt bei Kampagnen-/Klick-Kennungen (utm_…, adjust_…, fbclid …) und bietet „Tracking-Angaben entfernen“
+  datenschutz: die Datenschutzerklärung nennt den Link automatisch, solange er eingeschaltet ist
+  protokoll: nur an/aus, Linktext und Domain – nicht die vollständige Adresse
+```
+
 Passwort und Notfallcodes gehören in den Passwortmanager. Wenn Handy und Notfallcodes weg sind: per SSH `zw admin totp` – der Konsolenzugang bleibt immer der Rückweg.
 
 ## Update
@@ -212,7 +233,7 @@ Passwort und Notfallcodes gehören in den Passwortmanager. Wenn Handy und Notfal
 Neues ZIP hochladen und dasselbe Skript erneut ausführen. `config/` und `data/` bleiben erhalten; das Basis-Image wird dabei frisch gezogen, so kommen auch Sicherheitsupdates von Node.js und Debian in den Container. Einmal im Monat neu bauen lohnt sich auch ohne neue ZeroWichtel-Version:
 
 ```sh
-sudo bash install-docker-caddy.sh zerowichtel-2.6.0.zip
+sudo bash install-docker-caddy.sh zerowichtel-2.12.0.zip
 ```
 
 ## Domain wechseln

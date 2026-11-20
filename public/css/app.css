@@ -850,3 +850,8 @@ canvas.snow { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-ev
   .mix-row input + input { grid-column: 2; }
 }
 @media print { .mix-listen, .mix-edit { display: none; } }
+
+/* ---------- Unterstützungslink (2.12) ---------- */
+.footer a.footer-donate { color: var(--berry); font-weight: 600; }
+.footer a.footer-donate::before { content: '♥ ' / ''; font-weight: 400; }
+.donation-slot:empty { display: none; }

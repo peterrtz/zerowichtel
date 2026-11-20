@@ -13,6 +13,7 @@
 import { Admin } from './admin.mjs';
 import { checkCode, consumeCode } from './codes.mjs';
 import { openSettings, openStatus, openUsage, saveOpenSettings, describeOpen, OPEN_MAX } from './open-creation.mjs';
+import { donationSettings, saveDonation, publicDonation, describeDonation, DonationError } from './donation.mjs';
 import { countAnalog } from './stats.mjs';
 import { maybeCleanup, shred } from './cleanup.mjs';
 import crypto from 'node:crypto';
@@ -24,7 +25,7 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.11.0';
+export const VERSION = '2.12.0';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
@@ -223,10 +224,12 @@ export class App {
     }
     if (method === 'GET' && sub === '/overview') {
       return json({ now, expiresAt: exp, codes: this.admin.codes(now), stats: this.admin.stats(now), log: this.admin.recentLog(),
-        openCreation: { ...openStatus(this.db), codeRequiredByConfig: Boolean(this.config.require_organizer_code) } });
+        openCreation: { ...openStatus(this.db), codeRequiredByConfig: Boolean(this.config.require_organizer_code) },
+        donation: donationSettings(this.db) });
     }
     if (method === 'POST' && sub === '/codes') return this.adminCreateCode(body, now);
     if (method === 'PUT' && sub === '/open') return this.adminOpenCreation(body, now);
+    if (method === 'PUT' && sub === '/donation') return this.adminDonation(body, now);
     if (method === 'DELETE' && revoke) {
       this.admin.revokeCode(revoke[1], now);
       return noContent();
@@ -375,6 +378,20 @@ export class App {
     return noContent();
   }
 
+  /** Unterstützungslink des Betreibers (2.12): an/aus, Adresse (nur https), Linktext, kurzer Hinweis. */
+  adminDonation(b, now) {
+    for (const f of ['url', 'label', 'note']) if (get(b, f) !== null && typeof get(b, f) !== 'string') fail(f);
+    let next;
+    try {
+      next = saveDonation(this.db, { enabled: get(b, 'enabled'), url: get(b, 'url') ?? '', label: get(b, 'label') ?? '', note: get(b, 'note') ?? '', inRounds: get(b, 'inRounds') ?? false });
+    } catch (e) {
+      if (e instanceof DonationError) throw new HttpError(400, `invalid_${e.field}`, e.message);
+      throw e;
+    }
+    this.admin.log(now, 'Unterstützungslink', describeDonation(next));
+    return json({ donation: next });
+  }
+
   /** Anlegen ohne Code ein-/ausschalten, Obergrenze gleichzeitiger Runden, E-Mail für solche Runden. */
   adminOpenCreation(b, now) {
     const enabled = get(b, 'enabled');
@@ -461,6 +478,8 @@ export class App {
       noAccessLogs: Boolean(this.config.privacy.no_access_logs),
       backupDays: Math.max(0, Math.min(365, Math.trunc(Number(this.config.privacy.backup_days) || 0))),
       mailProvider: transport === 'brevo' || transport === 'smtp' ? transport : null,
+      // Unterstützungslink des Betreibers (2.12), nur wenn eingeschaltet
+      donation: publicDonation(this.db),
       version: VERSION,
     });
   }

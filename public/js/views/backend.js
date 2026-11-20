@@ -6,6 +6,7 @@ import { h, add, field, toast, errorBox, actionButton, clear } from '../lib/dom.
 import { api, ApiError, linkBase } from '../lib/api.js';
 import { formatDate } from '../lib/dates.js';
 import { shareBar } from '../lib/share.js';
+import { cleanUrl } from '../lib/cleanurl.js';
 import { page, card, chip, mount, setTitle, loading, notice, codeView, qrSvg } from './common.js';
 
 let session = null; // { auth, slug, expiresAt }
@@ -237,6 +238,51 @@ async function renderPanel(root) {
   }
   renderOpen(data.openCreation);
 
+  // ---------- Unterstützungslink (2.12)
+  const donateCard = card('Unterstützungslink');
+  function renderDonation(d) {
+    const on = h('input', { type: 'checkbox', checked: d.enabled });
+    const rounds = h('input', { type: 'checkbox', checked: !!d.inRounds });
+    const url = h('input', { type: 'url', maxlength: 500, inputmode: 'url', autocomplete: 'off', spellcheck: 'false', placeholder: 'https://…' });
+    const label = h('input', { type: 'text', maxlength: 40, placeholder: 'Unterstützen' });
+    const note = h('textarea', { rows: 2, maxlength: 200, placeholder: 'z. B. ZeroWichtel ist kostenlos. Statt eines Kaffees: teil eine Mahlzeit über ShareTheMeal.' });
+    url.value = d.url;
+    label.value = d.label;
+    note.value = d.note;
+    const track = h('div');
+    const checkTracking = () => {
+      clear(track);
+      const { url: cleaned, removed } = cleanUrl(url.value.trim());
+      if (!removed) return;
+      add(track, notice(`Die Adresse enthält ${removed === 1 ? 'eine Tracking-Angabe' : `${removed} Tracking-Angaben`} (z. B. Kampagnen- oder Klick-Kennungen). Darüber kann der Anbieter Klicks deinem Link zuordnen.`, 'warn'),
+        h('p', null, h('button', { type: 'button', class: 'btn btn-small', on: { click: () => { url.value = cleaned; checkTracking(); } } }, 'Tracking-Angaben entfernen')),
+        h('p', { class: 'hint' }, 'Danach den Link einmal selbst öffnen und prüfen, ob die Seite noch stimmt.'));
+    };
+    url.addEventListener('input', checkTracking);
+    checkTracking();
+    const save = actionButton('Speichern', async () => {
+      const res = await call(root, 'PUT', '/donation', { enabled: on.checked, url: url.value.trim(), label: label.value.trim(), note: note.value.trim(), inRounds: rounds.checked });
+      toast(res.donation.enabled ? 'Unterstützungslink eingeschaltet.' : 'Unterstützungslink ausgeschaltet.', 'ok');
+      renderDonation(res.donation);
+    }, { cls: 'btn btn-primary' });
+    const test = d.enabled && d.url
+      ? h('p', null, 'Gespeichert: ', h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer nofollow', referrerpolicy: 'no-referrer' }, d.label || 'Unterstützen'), ' ', chip(new URL(d.url).hostname, 'muted'), ' ', chip(d.inRounds ? 'auch in den Runden' : 'Fußzeile und Startseite', 'muted'))
+      : null;
+    donateCard.replaceChildren(...[h('h2', null, 'Unterstützungslink'),
+      h('p', null, 'ZeroWichtel ist kostenlos. Hier kannst du einen Link hinterlegen, etwa zu „Buy me a coffee“ oder einer Spendenaktion. Er erscheint immer in der Fußzeile und als kleine Karte auf der Startseite.'),
+      h('label', { class: 'check' }, on, ' Link anzeigen'),
+      h('label', { class: 'check' }, rounds, ' Zusätzlich in den Runden zeigen'),
+      h('p', { class: 'hint' }, 'Die meisten Teilnehmenden kommen über ihren Einladungslink direkt in die Runde und sehen die Startseite nie. Mit dieser Option steht die Karte auch auf der Teilnehmer- und der Verwaltungsseite – ganz unten, nach allem, was für die Runde wichtig ist.'),
+      field('Adresse (nur https)', url),
+      track,
+      field('Linktext (optional)', label, 'Ohne Angabe: „Unterstützen“ (englisch „Support“).'),
+      field('Kurzer Hinweis auf der Startseite (optional)', note, 'Höchstens 200 Zeichen. Ohne Angabe steht dort ein allgemeiner Satz.'),
+      h('p', { class: 'hint' }, 'Der Link wird nur angezeigt, nichts wird eingebettet oder vorab geladen. Er öffnet sich in einem neuen Tab ohne Herkunftsangabe. Die Datenschutzerklärung nennt ihn automatisch. Führt der Link zu Zahlungen an dich selbst, prüf bitte, ob „privat und nicht-kommerziell“ im Impressum dann noch passt.'),
+      test,
+      h('div', { class: 'form-actions' }, save)].filter(Boolean));
+  }
+  renderDonation(data.donation ?? { enabled: false, url: '', label: '', note: '', inRounds: false });
+
   // ---------- Protokoll
   const log = h('details', { class: 'card' },
     h('summary', null, 'Protokoll'),
@@ -253,6 +299,7 @@ async function renderPanel(root) {
     card('Neuer Code', createForm),
     listCard,
     openCard,
+    donateCard,
     overview,
     log,
     h('div', { class: 'form-actions' },

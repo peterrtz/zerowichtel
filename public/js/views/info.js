@@ -8,7 +8,7 @@ import { page, card, mount, setTitle, notice, loading } from './common.js';
 import { t, lang } from '../lib/i18n.js';
 
 const MISSING = '[in config.json unter „operator“ eintragen]';
-const STAND = '18. November 2026';
+const STAND = '20. November 2026';
 
 function operatorBlock(op) {
   const lines = [op.name, op.street, op.city].map((x) => x || null);
@@ -18,6 +18,11 @@ function operatorBlock(op) {
     op.email ? ['E-Mail: ', h('a', { href: `mailto:${op.email}` }, op.email), h('br')] : null,
     op.phone ? [`Telefon: ${op.phone}`, h('br')] : null,
     missing ? h('span', { class: 'muted' }, MISSING) : null);
+}
+
+/** Host des Unterstützungslinks (2.12), falls eingeschaltet. */
+function donationHost(info) {
+  try { return info.donation?.url ? new URL(info.donation.url).hostname : ''; } catch { return ''; }
 }
 
 function table(rows) {
@@ -78,7 +83,10 @@ function privacy(info) {
         mail
           ? h('li', null, `E-Mail-Versand (nur im E-Mail-Modus einer Runde): ${mailName} – Auftragsverarbeitung nach Art. 28 DSGVO, Verarbeitung im Europäischen Wirtschaftsraum. Beim Versand eines Links per E-Mail durchläuft dieser den Server und den Mailanbieter; ZeroWichtel speichert ihn nicht. ${mailTracking}`)
           : h('li', null, 'Es findet kein E-Mail-Versand statt.')),
-      h('p', null, 'Eine Übermittlung in Drittländer ist nicht vorgesehen.')),
+      h('p', null, 'Eine Übermittlung in Drittländer ist nicht vorgesehen.'),
+      donationHost(info)
+        ? h('p', null, `Unterstützungslink: ${info.donation.inRounds ? 'Fußzeile, Startseite und die Seiten der Wichtelrunden enthalten' : 'Fußzeile und Startseite enthalten'} einen Link zu ${donationHost(info)}. Er ist ein gewöhnlicher Link – es wird nichts eingebettet oder vorab geladen, und ZeroWichtel übermittelt dabei keine Daten. Erst wenn du ihn anklickst, öffnet dein Browser die fremde Seite in einem neuen Tab (ohne Herkunftsangabe); dort ist allein deren Anbieter verantwortlich, und es gelten dessen Datenschutzbestimmungen.`)
+        : null),
     card('6. Speicherung in deinem Browser',
       h('p', null, 'Damit du deine Runden wiederfindest, speichert die App deine Links und ggf. deinen Wiederherstellungscode im lokalen Speicher dieses Browsers (localStorage). Das ist für den von dir gewünschten Dienst unbedingt erforderlich (§ 25 Abs. 2 Nr. 2 TDDDG). Du kannst die Einträge jederzeit auf der Startseite entfernen. Der Server erfährt davon nichts.'),
       h('p', null, 'Stellst du eine anonyme Rückfrage, speichert die App den Schlüssel zum Abholen der Antwort und deinen Fragetext nur hier im lokalen Speicher; ohne ihn ist die Antwort für dich nicht abrufbar. Bei der analogen Wichtelrunde zum Ausdrucken speichert die App deine Eingaben (Namen, Termine, Lose) ebenfalls nur im lokalen Speicher dieses Browsers, damit sie ein Neuladen überstehen – bis du „Alles löschen“ wählst. Auch das ist unbedingt erforderlich für den von dir gewünschten Dienst (§ 25 Abs. 2 Nr. 2 TDDDG). Der Server erfährt davon nichts.'),

@@ -162,6 +162,12 @@ export async function startServer(o = {}) {
       const d = db();
       try { d.exec(q); } finally { d.close(); }
     },
+    /** Kommandozeile „zw …“ gegen die Testdatenbank (nur Node); liefert { status, out }. */
+    cli(...args) {
+      try {
+        return { status: 0, out: execFileSync(process.execPath, [join(ROOT, 'server', 'main.mjs'), ...args], { env: { ...process.env, ZW_CONFIG: cfgPath }, stdio: ['ignore', 'pipe', 'pipe'] }).toString() };
+      } catch (e) { return { status: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` }; }
+    },
     mails: () => (existsSync(mailLog) ? readFileSync(mailLog, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []),
 
     // ---- direkt gegen die Implementierung

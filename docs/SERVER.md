@@ -20,7 +20,7 @@ Der Server ist ein einzelner Node.js-Prozess (≥ 24.7) ohne npm-Pakete. Er lief
 | `server/email.mjs` | Prüfung von E-Mail-Adressen (Regel aus PHP `filter_var`) |
 | `server/mail/mailers.mjs` | Versand: SMTP (STARTTLS oder TLS, Zertifikat immer geprüft), Brevo-API, Log (Tests) |
 | `server/mail/texts.mjs` | Alle Mailtexte auf Deutsch und Englisch (Sprache der Runde) – ohne Namen, Wünsche oder Zuordnungen |
-| `server/cli.mjs` | `zw codes …`, `zw open …` und `zw admin …` (verdeckte Passworteingabe, QR-Code im Terminal) |
+| `server/cli.mjs` | `zw codes …`, `zw open …`, `zw donation …` und `zw admin …` (verdeckte Passworteingabe, QR-Code im Terminal) |
 | `server/open-creation.mjs` | Anlegen ohne Organisator-Code: Einstellung in `meta` (`open_creation`: an/aus, Obergrenze 1–500, E-Mail ja/nein); belegt = bestehende Runden mit `without_code = 1` |
 | `server/stats.mjs` | Zähler „analoge Wichtelrunde vorbereitet“ in `meta` (`stat_analog`: gesamt und je Jahr) – ohne Inhalte |
 | `server/backup.mjs` | `zw backup`: konsistente Kopie per `VACUUM INTO` nach `data/backup/` (0600), rotierende Löschung eigener Sicherungen |
@@ -78,6 +78,7 @@ IDs und Tokens: 22 Zeichen Base64url (128 Bit). Gespeichert wird nur SHA-256 (he
 | `POST /admin/{slug}/login` · `logout` | – / x | Admin-Bereich |
 | `GET /admin/{slug}/overview` · `POST /admin/{slug}/codes` · `DELETE /admin/{slug}/codes/{ref}` | x | Überblick, Code erzeugen, widerrufen |
 | `PUT /admin/{slug}/open` | x | Anlegen ohne Code: `{enabled, maxRounds, email}` |
+| `PUT /admin/{slug}/donation` | x | Unterstützungslink: `{enabled, url, label, note, inRounds}` (nur https, Längen und Steuerzeichen geprüft, `server/donation.mjs`). Gespeichert in `meta` (`donation`); `/overview` liefert die Einstellung, `GET /info` nur `{url, label, note, inRounds}` und nur eingeschaltet, sonst `null` |
 | `PATCH /rounds/{id}` mit `teamsCt` | a | Team-Wichteln an (Teamliste, K_round) oder aus (`null`, löscht alle Teamwahlen); nur Status offen, nur Wichteln |
 | `PUT /rounds/{id}/participants/{pid}/team` | a | Team einer Person setzen (`teamCt`, K_round, AAD an die Person gebunden; `null` = ohne Team); nur offen |
 | `PUT /me/team` | p | eigenes Team wählen; nur offen, nicht bei Absage |

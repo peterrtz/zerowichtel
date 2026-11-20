@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline';
 import { Admin, MAX_FAILURES, MIN_PASSWORD, RECOVERY_COUNT, totp } from './admin.mjs';
 import { codeHash, createCode } from './codes.mjs';
 import { openSettings, openStatus, saveOpenSettings, describeOpen, OPEN_MAX } from './open-creation.mjs';
+import { donationSettings, saveDonation, describeDonation, DonationError, DONATION_LABEL } from './donation.mjs';
 import { all, run } from './db.mjs';
 import qrcode from '../public/js/vendor/qrcode.mjs';
 
@@ -181,6 +182,52 @@ export function openCommand(db, config, args) {
       break;
     default:
       out('Verwendung:\n  zw open status\n  zw open on --max 10 [--email]   (höchstens 10 gleichzeitige Runden ohne Code)\n  zw open off');
+  }
+}
+
+// ------------------------------------------------------------------ zw donation
+
+/** Unterstützungslink: zw donation status | set --url https://… [--label "…"] [--note "…"] [--rounds on|off] | on | off */
+export function donationCommand(db, config, args) {
+  const show = () => {
+    const s = donationSettings(db);
+    out(`Unterstützungslink: ${describeDonation(s)}`);
+    if (s.url) out(`Adresse: ${s.url}`);
+    if (s.url) out(`Linktext: ${s.label || `${DONATION_LABEL} (Standard)`}`);
+    if (s.note) out(`Hinweis: ${s.note}`);
+    if (s.url) out(`In den Runden: ${s.inRounds ? 'ja' : 'nein'}`);
+  };
+  const save = (next, what) => {
+    try {
+      const s = saveDonation(db, next);
+      new Admin(db, config.server_key_raw).log(nowSec(), 'Unterstützungslink', `${describeDonation(s)} (Kommandozeile)`);
+    } catch (e) {
+      if (e instanceof DonationError) throw new CliError(`${what}: ${e.message}`);
+      throw e;
+    }
+    show();
+  };
+  const cur = donationSettings(db);
+  switch (args[0]) {
+    case 'set':
+      {
+        const r = opt(args, 'rounds', cur.inRounds ? 'on' : 'off');
+        if (!['on', 'off'].includes(r)) throw new CliError('--rounds: on oder off');
+        save({ enabled: true, url: opt(args, 'url', cur.url), label: opt(args, 'label', cur.label), note: opt(args, 'note', cur.note), inRounds: r === 'on' }, 'Speichern');
+      }
+      break;
+    case 'on':
+      save({ ...cur, enabled: true }, 'Einschalten');
+      break;
+    case 'off':
+      save({ ...cur, enabled: false }, 'Ausschalten');
+      break;
+    case 'status':
+    case undefined:
+      show();
+      break;
+    default:
+      out('Verwendung:\n  zw donation status\n  zw donation set --url https://… [--label "Linktext"] [--note "kurzer Hinweis"] [--rounds on|off]\n  zw donation on | off');
   }
 }
 

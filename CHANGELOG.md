@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2.12.0 – 2026-11-20
+
+Kein neues Datenbankschema (Einstellung in der Tabelle `meta`).
+
+- **Unterstützungslink des Betreibers:** Im Admin-Bereich (Karte „Unterstützungslink“) oder per `zw donation set --url … [--label …] [--note …]` lässt sich ein Link hinterlegen, etwa zu „Buy me a coffee“ oder einer Spendenaktion. Er erscheint in der Fußzeile aller Seiten und als kleine Karte auf der Startseite. Optional („Zusätzlich in den Runden zeigen“, `--rounds on`) steht die Karte auch ganz unten auf der Teilnehmer- und der Verwaltungsseite – dort, wo Teilnehmende über ihren Einladungslink tatsächlich ankommen. Ohne Einstellung ändert sich nichts.
+- Nur https-Adressen mit Domainnamen, ohne Zugangsdaten; Linktext höchstens 40, Hinweis höchstens 200 Zeichen. Gewöhnlicher Link: neuer Tab, kein Opener, kein Referrer; nichts wird eingebettet oder vorab geladen (im Browser-Test geprüft).
+- Der Admin-Bereich warnt bei Tracking-Angaben in der Adresse und entfernt sie auf Knopfdruck. Die Wunschlink-Bereinigung entfernt jetzt auch `adjust_…`-Kennungen.
+- Die Datenschutzerklärung nennt den Link automatisch, solange er eingeschaltet ist. Das Protokoll speichert nur Linktext und Domain.
+- Installationsanleitungen nennen die aktuelle Paketversion statt 2.6.0.
+
 ## 2.11.0 – 2026-11-18
 
 Datenbankschema 12 (nur ergänzend: `participants.mix_ct`).

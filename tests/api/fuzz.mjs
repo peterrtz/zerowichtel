@@ -35,7 +35,7 @@ const endpoints = [
   ['DELETE', `/rounds/${nid()}`], ['POST', `/admin/${'a'.repeat(26)}/login`], ['GET', '/admin/x'],
   // seit 2.3: Gruppenlink, Rätselhinweise; 2.4: Admin „Anlegen ohne Code“; 2.5: Team-Wichteln
   ['PUT', `/rounds/${rid}/join`], ['DELETE', `/rounds/${rid}/join`], ['GET', '/join'], ['POST', '/join'],
-  ['POST', '/mailbox/hints'], ['DELETE', `/mailbox/hints/${nid()}`], ['PUT', `/admin/${'a'.repeat(26)}/open`],
+  ['POST', '/mailbox/hints'], ['DELETE', `/mailbox/hints/${nid()}`], ['PUT', `/admin/${'a'.repeat(26)}/open`], ['PUT', `/admin/${'a'.repeat(26)}/donation`],
   ['PUT', '/me/team'], ['PUT', `/rounds/${rid}/participants/${pid}/team`],
 ];
 const fields = ['id', 'adminHash', 'mode', 'rsvpDeadline', 'wishDeadline', 'eventDate', 'metaCt', 'adminCt', 'organizerCode', 'inviteHash', 'inviteCt',

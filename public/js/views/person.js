@@ -10,6 +10,7 @@ import { schrottCard } from './game.js';
 import { countdownCard } from './extras.js';
 import { personQuestionsCard, helpButton } from './questions.js';
 import { mixtapeCard } from './mixtape.js';
+import { donationCard } from '../lib/donation.js';
 import { forgetAnonQuestions } from '../lib/questions.js';
 import { recoveryPng, saveImage } from '../lib/recovery-image.js';
 
@@ -259,6 +260,7 @@ export async function renderPerson(root, pctx) {
     round.mode === 'schrott' && me.rsvp !== 'raus' ? schrottCard({ meta, round, packages: counts.dabei, storageKey: round.id }) : null,
     card(null, factList(round, meta), me.rsvp !== 'raus' ? calendarButton({ round, meta, role: 'person', url: M.jumpLink(pctx.pid) }) : null),
     emailCard,
+    donationCard(card, { inRound: true }),
     h('p', { class: 'center' }, removeBtn),
   ));
 }

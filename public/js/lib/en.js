@@ -1171,6 +1171,12 @@ export const EN = {
   "„Anhören“ öffnet die Suche beim jeweiligen Dienst erst beim Klick; dorthin gehen nur Titel und Interpret. ZeroWichtel lädt nichts von Musikdiensten.": "“Listen” opens the search on that service only when you click; only title and artist are sent there. ZeroWichtel loads nothing from music services.",
   "Wichtel-Mixtape": "Secret Santa mixtape",
   "Wer diesmal raus ist, trägt keine Lieder bei.": "If you're out this time, you don't add songs.",
+  // 2.12 Unterstützungslink
+  "Unterstützen": "Support",
+  "Öffnet {host} in einem neuen Tab": "Opens {host} in a new tab",
+  "ZeroWichtel unterstützen": "Support ZeroWichtel",
+  "ZeroWichtel ist kostenlos, werbefrei und ohne Tracking. Wenn es dir gefällt, freut sich der Betreiber über deine Unterstützung.": "ZeroWichtel is free, ad-free and without tracking. If you like it, the operator appreciates your support.",
+  "Der Link führt zu {host} und öffnet sich erst bei deinem Klick. ZeroWichtel gibt dabei nichts weiter; dort gelten die Datenschutzbestimmungen des Anbieters.": "The link leads to {host} and only opens when you click it. ZeroWichtel passes nothing on; the provider's privacy policy applies there.",
 };
 
 /** Server-Meldungen mit eingesetzten Werten (Zahlen, Feldnamen). */

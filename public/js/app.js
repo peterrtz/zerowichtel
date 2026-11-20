@@ -18,6 +18,7 @@ import { renderDemo } from './views/demo.js';
 import { renderAnalogRound } from './views/analog.js';
 import { initMusic } from './lib/music.js';
 import { initCryptoInfo } from './views/crypto-info.js';
+import { initFooterDonation } from './lib/donation.js';
 import { stopSnow } from './lib/snow.js';
 import { t, lang, setLang, applyStatic } from './lib/i18n.js';
 
@@ -63,6 +64,7 @@ window.addEventListener('hashchange', route);
 applyStatic();
 initMusic();
 initCryptoInfo();
+initFooterDonation();
 
 // B5: Sprunglink – ohne den Hash zu ändern (die Adresse ist hier der Router)
 document.getElementById('skip-link')?.addEventListener('click', (ev) => {
