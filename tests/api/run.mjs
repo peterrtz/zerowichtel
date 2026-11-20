@@ -797,6 +797,62 @@ test23('Anlegen ohne Code: Admin-Einstellung, Obergrenze gleichzeitiger Runden, 
   ok(ov.log.some((l) => l.event === 'Anlegen ohne Code' && /höchstens 2/.test(l.detail)), 'protokolliert');
 });
 
+test23('Geschenkvorschläge (2.12) – Admin pflegt, /ideas liefert, Prüfung, Export/Import per Kommandozeile', async () => {
+  const a = await adminEnv();
+  const e = a.env;
+  const [, d] = await adminLogin(a);
+  const put = (b, auth = d.session) => e.call('PUT', `/admin/${a.slug}/ideas`, b, auth);
+  eq({ mode: 'builtin', items: [] }, (await e.call('GET', '/ideas'))[1], 'Standard');
+  eq({ mode: 'builtin', items: [] }, (await e.call('GET', `/admin/${a.slug}/overview`, null, d.session))[1].ideas);
+  eq(401, (await put({ mode: 'extend', items: [{ max: 5, de: 'x' }] }, null))[0], 'nur mit Sitzung');
+  for (const [b, why] of [
+    [{ mode: 'alles', items: [] }, 'Modus'], [{ mode: 'replace', items: [] }, 'leer ersetzen'],
+    [{ mode: 'extend', items: [{ max: 7, de: 'x' }] }, 'Preisklasse'], [{ mode: 'extend', items: [{ max: 5, de: '' }] }, 'ohne Text'],
+    [{ mode: 'extend', items: [{ max: 5, de: 'x'.repeat(121) }] }, 'zu lang'], [[], 'kein Objekt'],
+  ]) eq(400, (await put(b))[0], why);
+  let [s, r] = await put({ mode: 'extend', items: [{ max: 5, de: ' Kerze ', en: 'Candle' }, { max: null, de: 'Ausflug' }] });
+  eq([200, 'extend', 2, 'Kerze'], [s, r.ideas.mode, r.ideas.items.length, r.ideas.items[0].de]);
+  eq(r.ideas, (await e.call('GET', '/ideas'))[1], 'öffentlich');
+  // Größte erlaubte Liste passt in die Anfragegrenze (200 × 120 + 120 Zeichen, ASCII)
+  const big = Array.from({ length: 200 }, (_, i) => ({ max: [5, 10, 20, 30, 50, null][i % 6], de: `${i} ${'d'.repeat(115)}`, en: `${i} ${'e'.repeat(115)}` }));
+  [s] = await put({ mode: 'replace', items: big });
+  eq(200, s, 'größte Liste');
+  // Standardliste wieder aktiv: eigene bleiben gespeichert, öffentlich nur der Modus
+  [, r] = await put({ mode: 'builtin', items: big });
+  eq([ 'builtin', 200 ], [r.ideas.mode, r.ideas.items.length]);
+  eq({ mode: 'builtin', items: [] }, (await e.call('GET', '/ideas'))[1]);
+  const [, ov] = await e.call('GET', `/admin/${a.slug}/overview`, null, d.session);
+  ok(ov.log.some((l) => l.event === 'Geschenkvorschläge' && /nur 200 eigene/.test(l.detail)), 'protokolliert');
+  // Kaputter Eintrag → Standardliste
+  e.s.exec(`UPDATE meta SET value = '{"mode":"replace","items":[]}' WHERE key = 'ideas'`);
+  eq({ mode: 'builtin', items: [] }, (await e.call('GET', '/ideas'))[1]);
+  // Kommandozeile: Import, Export, Fehler, Zurücksetzen
+  const file = JSON.stringify({ mode: 'replace', items: [{ max: 10, de: 'Tee', en: 'Tea' }] });
+  let c = e.s.cli('ideas', 'import', { input: file });
+  eq(0, c.status, c.out);
+  ok(/nur 1 eigene/.test(c.out), c.out);
+  eq('Tee', (await e.call('GET', '/ideas'))[1].items[0].de);
+  c = e.s.cli('ideas', 'export');
+  eq({ mode: 'replace', items: [{ max: 10, de: 'Tee', en: 'Tea' }] }, JSON.parse(c.out), 'Export = Import');
+  c = e.s.cli('ideas', 'import', { input: '{kaputt' });
+  ok(c.status !== 0 && /kein gültiges JSON/.test(c.out), c.out);
+  c = e.s.cli('ideas', 'import', { input: JSON.stringify({ mode: 'replace', items: [{ max: 3, de: 'x' }] }) });
+  ok(c.status !== 0 && /Preisklasse/.test(c.out), c.out);
+  eq('Tee', (await e.call('GET', '/ideas'))[1].items[0].de, 'nach Fehlern unverändert');
+  c = e.s.cli('ideas', 'reset');
+  ok(/Standardliste \(1 eigene gespeichert, nicht aktiv\)/.test(c.out), c.out);
+  eq('builtin', (await e.call('GET', '/ideas'))[1].mode);
+});
+
+test23('Quellcode-Link (2.12): Standard, eigene https-Adresse, Ungültiges fällt auf den Standard zurück', async () => {
+  const STD = 'https://github.com/peterrtz/zerowichtel';
+  eq(STD, (await (await Env.make()).call('GET', '/info'))[1].sourceUrl, 'Standard');
+  eq('https://code.example.org/wichtel', (await (await Env.make({ sourceUrl: 'https://code.example.org/wichtel' })).call('GET', '/info'))[1].sourceUrl, 'eigene');
+  for (const bad of ['http://example.org', 'javascript:alert(1)', 'https://u:p@example.org/', 42, '']) {
+    eq(STD, (await (await Env.make({ sourceUrl: bad })).call('GET', '/info'))[1].sourceUrl, `ungültig: ${bad}`);
+  }
+});
+
 test23('Unterstützungslink (2.12) – Admin-Einstellung, Prüfung, öffentlich nur eingeschaltet, Kommandozeile', async () => {
   const a = await adminEnv();
   const e = a.env;

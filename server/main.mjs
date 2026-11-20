@@ -6,6 +6,7 @@
 //   zw codes create --label "…" [--rounds 3] [--days 60] | list | revoke <code>
 //   zw open status | on --max 10 [--email] | off   Anlegen ohne Organisator-Code (Obergrenze gleichzeitiger Runden)
 //   zw donation status | set --url https://… [--label "…"] [--note "…"] [--rounds on|off] | on | off   Unterstützungslink
+//   zw ideas status | export | import < datei.json | reset   Geschenkvorschläge des Ideen-Würfels
 //   zw admin <setup|status|password|totp|recovery|new-url|logout-all|unlock|remove>
 //   zw cleanup [--vacuum]                          einmal aufräumen und fällige Mails verschicken
 //   zw backup [--dir <ordner>] [--keep <tage>]     konsistente Sicherung (Standard: data/backup/, alte nach backup_days bzw. 14 Tagen löschen)
@@ -16,7 +17,7 @@ import crypto from 'node:crypto';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { App, VERSION } from './app.mjs';
-import { adminCommand, closeInput, codesCommand, donationCommand, openCommand, CliError } from './cli.mjs';
+import { adminCommand, closeInput, codesCommand, donationCommand, ideasCommand, openCommand, CliError } from './cli.mjs';
 import { backup } from './backup.mjs';
 import { cleanup } from './cleanup.mjs';
 import { ROOT, loadConfig } from './config.mjs';
@@ -94,8 +95,8 @@ function check(config, db) {
 
 async function main() {
   if (typeof crypto.argon2Sync !== 'function') throw new CliError(`Node.js ${process.versions.node} ist zu alt – benötigt wird Version 24.7 oder neuer.`);
-  if (!['serve', 'check', 'codes', 'open', 'donation', 'admin', 'cleanup', 'backup'].includes(cmd)) {
-    console.log(`ZeroWichtel ${VERSION}\n\nBefehle: serve, check, codes, open, donation, admin, cleanup, backup  (Details: siehe Kopf von server/main.mjs)`);
+  if (!['serve', 'check', 'codes', 'open', 'donation', 'ideas', 'admin', 'cleanup', 'backup'].includes(cmd)) {
+    console.log(`ZeroWichtel ${VERSION}\n\nBefehle: serve, check, codes, open, donation, ideas, admin, cleanup, backup  (Details: siehe Kopf von server/main.mjs)`);
     return;
   }
   const config = loadConfig(configPath());
@@ -105,6 +106,7 @@ async function main() {
   if (cmd === 'codes') codesCommand(db, args);
   if (cmd === 'open') openCommand(db, config, args);
   if (cmd === 'donation') donationCommand(db, config, args);
+  if (cmd === 'ideas') ideasCommand(db, config, args);
   if (cmd === 'admin') await adminCommand(db, config, args).finally(closeInput);
   if (cmd === 'backup') {
     const i = args.indexOf('--dir');

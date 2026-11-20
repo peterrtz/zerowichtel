@@ -248,6 +248,52 @@ try {
     await waitText(visitor, 'Unterstützungslink: Fußzeile, Startseite und die Seiten der Wichtelrunden enthalten einen Link zu sharethemeal.org');
   });
 
+  await step('Geschenkvorschläge: im Admin-Bereich eigene Liste anlegen; der Ideen-Würfel nimmt sie', async () => {
+    await admin.bringToFront(); // Sitzung lebt nur im Speicher: kein Neuladen
+    await waitText(admin, 'Geschenkvorschläge (Ideen-Würfel)');
+    await admin.evaluate(() => { document.getElementById('ideen').open = true; });
+    const btn = async (text) => admin.evaluate((x) => [...document.querySelectorAll('#ideen button')].find((b) => b.textContent === x).click(), text);
+    // Vorlage übernehmen → Modus „Nur eigene“, Standardliste im Editor
+    await btn('Standardliste als Vorlage übernehmen');
+    await waitText(admin, 'Standardliste übernommen');
+    const n0 = await admin.$$eval('#ideen .ideas-row', (r) => r.length);
+    if (n0 < 20) problems.push(`Vorlage: nur ${n0} Zeilen`);
+    // Alles entfernen bis auf einen neuen Vorschlag bis 5 €
+    await admin.evaluate(() => { while (document.querySelector('#ideen .ideas-row button')) document.querySelector('#ideen .ideas-row button').click(); });
+    await btn('+ Vorschlag bis 5 €');
+    await admin.evaluate(() => {
+      const [de, en] = document.querySelectorAll('#ideen .ideas-row input');
+      de.value = 'Selbstgebackene Plätzchen in einer Dose'; de.dispatchEvent(new Event('input'));
+      en.value = 'Home-baked cookies in a tin'; en.dispatchEvent(new Event('input'));
+    });
+    await btn('+ Vorschlag über 50 €'); // leer → wird beim Speichern weggelassen
+    await shotCard(admin, 'Geschenkvorschläge (Ideen-Würfel)', 'ideen');
+    await axe(admin, 'Admin: Geschenkvorschläge');
+    await btn('Speichern');
+    await waitText(admin, 'Gespeichert: 1 eigene Vorschläge.');
+    const stored = JSON.parse(JSON.parse(srv.sql("SELECT value FROM meta WHERE key = 'ideas'"))[0].value);
+    if (stored.mode !== 'replace' || stored.items.length !== 1 || stored.items[0].max !== 5) problems.push(`Gespeichert: ${JSON.stringify(stored)}`);
+    // Ideen-Würfel in der App (gleiches Modul wie auf der Teilnehmerseite), Limit 5 € und 3 €
+    await visitor.bringToFront();
+    await visitor.goto(`${srv.base}/#`);
+    await visitor.reload();
+    const rolled = await visitor.evaluate(async () => {
+      const { ideaDice } = await import('/js/views/extras.js');
+      const out = [];
+      for (const budget of [5, 3]) {
+        const el = ideaDice(budget);
+        document.querySelector('main').append(el);
+        el.querySelector('button').click();
+        await new Promise((r) => setTimeout(r, 400));
+        out.push(el.querySelector('.idea-out').textContent);
+        el.remove();
+      }
+      return out;
+    });
+    if (rolled[0] !== 'Selbstgebackene Plätzchen in einer Dose') problems.push(`Würfel bei 5 €: ${rolled[0]}`);
+    if (rolled[1] !== 'Selbstgebackene Plätzchen in einer Dose') problems.push(`Würfel bei 3 €: ${rolled[1]} (Klasse bis 5 € passt immer)`);
+  });
+
   await step('Ausschalten: Link verschwindet überall', async () => {
     await admin.bringToFront();
     const card = await donateCard(admin);

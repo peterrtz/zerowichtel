@@ -41,15 +41,27 @@
     <noscript><p class="notice notice-warn">ZeroWichtel verschlüsselt alles in deinem Browser und braucht dafür JavaScript. / ZeroWichtel encrypts everything in your browser and needs JavaScript for that.</p></noscript>
   </main>
   <footer class="footer">
-    <a href="#hilfe" data-i18n>Hilfe</a>
-    <a href="#datenschutz" data-i18n>Datenschutz</a>
-    <a href="#impressum" data-i18n>Impressum</a>
-    <a href="#barrierefreiheit" data-i18n>Barrierefreiheit</a>
-    <a href="#lizenzen" data-i18n>Lizenzen</a>
-    <button type="button" class="linklike" id="crypto-info-footer" aria-haspopup="dialog" data-i18n>Verschlüsselung</button>
-    <button type="button" class="linklike" id="theme-reset" hidden data-i18n>Design wie Gerät</button>
-    <button type="button" class="linklike" id="lang-toggle" lang="en">English</button>
-    <span data-i18n>Open Source · EUPL-1.2 · Musik: starostin (Pixabay)</span>
+    <nav class="footer-row footer-nav" aria-label="Fußzeile" data-i18n-label>
+      <a href="#hilfe" data-i18n>Hilfe</a>
+      <a href="#datenschutz" data-i18n>Datenschutz</a>
+      <a href="#impressum" data-i18n>Impressum</a>
+      <a href="#barrierefreiheit" data-i18n>Barrierefreiheit</a>
+      <a href="#lizenzen" data-i18n>Lizenzen</a>
+    </nav>
+    <div class="footer-row footer-meta">
+      <label class="footer-theme" title="Design" data-i18n-title>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg>
+        <span class="visually-hidden" data-i18n>Design</span>
+        <select id="theme-select">
+          <option value="" data-i18n>Wie Gerät</option>
+          <option value="light" data-i18n>Hell</option>
+          <option value="dark" data-i18n>Dunkel</option>
+        </select>
+      </label>
+      <button type="button" class="linklike" id="lang-toggle" lang="en">English</button>
+      <a class="footer-source" id="source-link" href="https://github.com/peterrtz/zerowichtel" rel="noopener noreferrer" target="_blank" referrerpolicy="no-referrer"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M5.5 4 1.75 8l3.75 4M10.5 4l3.75 4-3.75 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n>Quellcode</span></a>
+      <span class="footer-legal" data-i18n>EUPL-1.2 · Musik: starostin (Pixabay)</span>
+    </div>
   </footer>
 </body>
 </html>

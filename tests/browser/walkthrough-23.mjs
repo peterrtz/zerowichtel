@@ -187,6 +187,7 @@ try {
     if (g !== pages.Cy) {
       await clickText(g, 'Ideen-Würfel');
       await clickText(g, 'Idee würfeln');
+      await g.waitForFunction(() => document.querySelector('.idea-out')?.textContent, { timeout: 5000 }).catch(() => {});
       const idea = await g.$eval('.idea-out', (e) => e.textContent);
       if (!idea) problems.push('Ideen-Würfel ohne Vorschlag');
     }

@@ -7,6 +7,7 @@ import { api, ApiError, linkBase } from '../lib/api.js';
 import { formatDate } from '../lib/dates.js';
 import { shareBar } from '../lib/share.js';
 import { cleanUrl } from '../lib/cleanurl.js';
+import { IDEAS } from '../lib/ideas.js';
 import { page, card, chip, mount, setTitle, loading, notice, codeView, qrSvg } from './common.js';
 
 let session = null; // { auth, slug, expiresAt }
@@ -283,6 +284,77 @@ async function renderPanel(root) {
   }
   renderDonation(data.donation ?? { enabled: false, url: '', label: '', note: '', inRounds: false });
 
+  // ---------- Geschenkvorschläge für den Ideen-Würfel (2.12)
+  const ideasCard = h('details', { class: 'card ideas-admin', id: 'ideen' });
+  const CLASS_LABEL = (max) => (max === null ? 'über 50 €' : `bis ${max} €`);
+  const IDEA_CLASSES = [5, 10, 20, 30, 50, null];
+  const MAX_ITEMS = 200;
+  function renderIdeas(cfg, open = false) {
+    let items = cfg.items.map((it) => ({ ...it }));
+    const modes = [['builtin', 'Standardliste', `${IDEAS.flatMap(([, l]) => l).length} Vorschläge, die mit ZeroWichtel kommen`],
+      ['extend', 'Standardliste plus eigene', 'Deine Vorschläge kommen dazu'],
+      ['replace', 'Nur eigene', 'Die Standardliste wird nicht verwendet']];
+    const radios = modes.map(([v, label, hint]) => h('label', { class: 'mode-option' },
+      h('input', { type: 'radio', name: 'ideas-mode', value: v, checked: cfg.mode === v }),
+      h('span', null, h('strong', null, label), h('span', { class: 'hint' }, hint))));
+    const count = h('p', { class: 'hint', 'aria-live': 'polite' });
+    const groups = h('div', { class: 'ideas-groups' });
+    const draw = () => {
+      clear(groups);
+      for (const max of IDEA_CLASSES) {
+        const rows = items.map((it, i) => [it, i]).filter(([it]) => it.max === max);
+        const list = h('ul', { class: 'ideas-rows' }, rows.map(([it, i]) => {
+          const de = h('input', { type: 'text', maxlength: 120, 'aria-label': `${CLASS_LABEL(max)}, Vorschlag ${rows.findIndex(([, j]) => j === i) + 1}, deutsch`, placeholder: 'Deutsch' });
+          const en = h('input', { type: 'text', maxlength: 120, lang: 'en', 'aria-label': `${CLASS_LABEL(max)}, Vorschlag ${rows.findIndex(([, j]) => j === i) + 1}, englisch (optional)`, placeholder: 'English (optional)' });
+          de.value = it.de;
+          en.value = it.en;
+          de.addEventListener('input', () => { it.de = de.value; });
+          en.addEventListener('input', () => { it.en = en.value; });
+          return h('li', { class: 'ideas-row' }, de, en,
+            h('button', { type: 'button', class: 'btn btn-ghost btn-small', 'aria-label': `Vorschlag „${it.de || 'leer'}“ entfernen`, on: { click: () => { items.splice(i, 1); draw(); } } }, 'Entfernen'));
+        }));
+        add(groups, h('fieldset', { class: 'ideas-class' },
+          h('legend', null, CLASS_LABEL(max), ' ', h('span', { class: 'muted' }, `(${rows.length})`)),
+          rows.length ? list : h('p', { class: 'hint' }, 'Noch keine eigenen Vorschläge.'),
+          h('button', { type: 'button', class: 'btn btn-small', disabled: items.length >= MAX_ITEMS, on: { click: () => {
+            items.push({ max, de: '', en: '' });
+            draw();
+            groups.querySelectorAll(`fieldset`)[IDEA_CLASSES.indexOf(max)].querySelector('li:last-child input')?.focus();
+          } } }, `+ Vorschlag ${CLASS_LABEL(max)}`)));
+      }
+      count.textContent = `${items.length} von ${MAX_ITEMS} eigenen Vorschlägen. Leere Zeilen werden beim Speichern weggelassen.`;
+    };
+    draw();
+    const template = h('button', { type: 'button', class: 'btn btn-small', on: { click: () => {
+      if (items.length && !confirm('Die Standardliste zusätzlich in den Editor übernehmen? Deine Einträge bleiben erhalten.')) return;
+      const base = IDEAS.flatMap(([max, list]) => list.map(([de, en]) => ({ max: max === Infinity ? null : max, de, en })));
+      items = [...items, ...base].slice(0, MAX_ITEMS);
+      ideasCard.querySelector('input[value="replace"]').checked = true;
+      draw();
+      toast('Standardliste übernommen – jetzt anpassen und speichern. Modus: „Nur eigene“.', 'ok');
+    } } }, 'Standardliste als Vorlage übernehmen');
+    const save = actionButton('Speichern', async () => {
+      const mode = ideasCard.querySelector('input[name="ideas-mode"]:checked')?.value ?? 'builtin';
+      const clean = items.map((it) => ({ max: it.max, de: it.de.trim(), en: it.en.trim() })).filter((it) => it.de || it.en);
+      const res = await call(root, 'PUT', '/ideas', { mode, items: clean });
+      toast(`Gespeichert: ${res.ideas.mode === 'builtin' ? 'Standardliste' : `${res.ideas.items.length} eigene Vorschläge`}.`, 'ok');
+      renderIdeas(res.ideas, true);
+    }, { cls: 'btn btn-primary' });
+    const summaryText = cfg.mode === 'builtin' ? 'Standardliste' : `${cfg.mode === 'extend' ? 'Standardliste plus' : 'nur'} ${cfg.items.length} eigene`;
+    ideasCard.replaceChildren(
+      h('summary', null, 'Geschenkvorschläge (Ideen-Würfel)'),
+      h('p', null, 'Aktiv: ', h('strong', null, summaryText), '.'),
+      h('p', null, 'Der Ideen-Würfel schlägt Teilnehmenden Geschenke passend zum Betragslimit vor. Hier ergänzt oder ersetzt du die Liste. Englisch ist optional; ohne Übersetzung erscheint der deutsche Text.'),
+      h('div', { class: 'mode-pick', role: 'radiogroup', 'aria-label': 'Welche Liste?' }, radios),
+      h('p', { class: 'form-actions' }, template),
+      groups,
+      count,
+      h('p', { class: 'hint' }, 'Bitte keine Links und keine Markennamen-Werbung: Die Vorschläge erscheinen allen Teilnehmenden aller Runden. Sicherung und Bearbeitung in größerem Umfang: „zw ideas export“ und „zw ideas import“ auf dem Server.'),
+      h('div', { class: 'form-actions' }, save));
+    ideasCard.open = open;
+  }
+  renderIdeas(data.ideas ?? { mode: 'builtin', items: [] });
+
   // ---------- Protokoll
   const log = h('details', { class: 'card' },
     h('summary', null, 'Protokoll'),
@@ -300,6 +372,7 @@ async function renderPanel(root) {
     listCard,
     openCard,
     donateCard,
+    ideasCard,
     overview,
     log,
     h('div', { class: 'form-actions' },

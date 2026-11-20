@@ -36,9 +36,7 @@ export const EN = {
   "ZeroWichtel – Startseite": "ZeroWichtel – home",
   "Wie die Verschlüsselung funktioniert": "How the encryption works",
   "verschlüsselt": "encrypted",
-  "Verschlüsselung": "Encryption",
-  "Design wie Gerät": "Theme like device",
-  "Open Source · EUPL-1.2 · Musik: starostin (Pixabay)": "Open source · EUPL-1.2 · Music: starostin (Pixabay)",
+  "EUPL-1.2 · Musik: starostin (Pixabay)": "EUPL-1.2 · Music: starostin (Pixabay)",
   " an einen Server – er bleibt auf deinem Gerät. Darin stecken die Schlüssel, mit denen dein Browser ver- und entschlüsselt.": " send it to a server – it stays on your device. It holds the keys your browser uses to encrypt and decrypt.",
   " heißt Fragment. Browser schicken ihn ": " is called the fragment. Browsers ",
   " und der ": " and the ",
@@ -1177,6 +1175,17 @@ export const EN = {
   "ZeroWichtel unterstützen": "Support ZeroWichtel",
   "ZeroWichtel ist kostenlos, werbefrei und ohne Tracking. Wenn es dir gefällt, freut sich der Betreiber über deine Unterstützung.": "ZeroWichtel is free, ad-free and without tracking. If you like it, the operator appreciates your support.",
   "Der Link führt zu {host} und öffnet sich erst bei deinem Klick. ZeroWichtel gibt dabei nichts weiter; dort gelten die Datenschutzbestimmungen des Anbieters.": "The link leads to {host} and only opens when you click it. ZeroWichtel passes nothing on; the provider's privacy policy applies there.",
+  // 2.12 Fußzeile
+  "Fußzeile": "Footer",
+  "Design": "Theme",
+  "Wie Gerät": "Like device",
+  "Hell": "Light",
+  "Dunkel": "Dark",
+  // 2.12 Quellcode-Link
+  "Quellcode": "Source code",
+  "Quellcode:": "Source code:",
+  // 2.12 Ideen
+  "Für dieses Betragslimit gibt es in der Liste keinen Vorschlag.": "There is no suggestion in the list for this spending limit.",
 };
 
 /** Server-Meldungen mit eingesetzten Werten (Zahlen, Feldnamen). */

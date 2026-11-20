@@ -44,8 +44,9 @@
       btn.setAttribute('title', label);
       btn.setAttribute('data-mode', eff);
     }
-    const reset = document.getElementById('theme-reset');
-    if (reset) reset.hidden = !s;
+    // Auswahl in der Fußzeile: Wie Gerät / Hell / Dunkel
+    const sel = document.getElementById('theme-select');
+    if (sel) sel.value = s || '';
   }
 
   function set(v) {
@@ -62,8 +63,8 @@
     apply();
     const btn = document.getElementById('theme-toggle');
     if (btn) btn.addEventListener('click', function () { set(effective() === 'light' ? 'dark' : 'light'); });
-    const reset = document.getElementById('theme-reset');
-    if (reset) reset.addEventListener('click', function () { set(null); });
+    const sel = document.getElementById('theme-select');
+    if (sel) sel.addEventListener('change', function () { set(sel.value === 'light' || sel.value === 'dark' ? sel.value : null); });
   });
   // Falls localStorage blockiert ist, gilt die Wahl wenigstens bis zum Neuladen
   window.addEventListener('storage', function (e) { if (e.key === KEY) apply(); });

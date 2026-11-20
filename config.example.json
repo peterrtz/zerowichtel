@@ -8,6 +8,8 @@
   // Öffentliche Basis-URL ohne abschließenden Schrägstrich. Mit https:// leitet der Server
   // alle Anfragen ohne „X-Forwarded-Proto: https“ (vom Reverse Proxy) auf HTTPS um.
   "base_url": "https://wichteln.example.org",
+  // Link „Quellcode“ (Fußzeile, Impressum, Lizenzen). Wer ZeroWichtel verändert betreibt, verlinkt hier den eigenen Code.
+  "source_url": "https://github.com/peterrtz/zerowichtel",
 
   // Serverschlüssel (32 Byte, Base64). Erzeugen mit:
   //   head -c 32 /dev/urandom | base64

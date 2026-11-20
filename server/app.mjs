@@ -14,6 +14,7 @@ import { Admin } from './admin.mjs';
 import { checkCode, consumeCode } from './codes.mjs';
 import { openSettings, openStatus, openUsage, saveOpenSettings, describeOpen, OPEN_MAX } from './open-creation.mjs';
 import { donationSettings, saveDonation, publicDonation, describeDonation, DonationError } from './donation.mjs';
+import { ideasSettings, saveIdeas, publicIdeas, describeIdeas, IdeasError } from './ideas.mjs';
 import { countAnalog } from './stats.mjs';
 import { maybeCleanup, shred } from './cleanup.mjs';
 import crypto from 'node:crypto';
@@ -135,6 +136,7 @@ export class App {
     const r = (method, path, fn) => [method, new RegExp(`^${path.replaceAll(':id', ID)}$`), fn];
     return [
       r('GET', '/info', () => this.info()),
+      r('GET', '/ideas', () => json(publicIdeas(this.db))),
       r('POST', '/organizer/check', (q) => this.organizerCheck(q)),
       r('POST', '/rounds', (q) => this.createRound(q)),
       r('GET', '/rounds/:id/admin', (q, id) => this.adminView(q, id)),
@@ -225,11 +227,12 @@ export class App {
     if (method === 'GET' && sub === '/overview') {
       return json({ now, expiresAt: exp, codes: this.admin.codes(now), stats: this.admin.stats(now), log: this.admin.recentLog(),
         openCreation: { ...openStatus(this.db), codeRequiredByConfig: Boolean(this.config.require_organizer_code) },
-        donation: donationSettings(this.db) });
+        donation: donationSettings(this.db), ideas: ideasSettings(this.db) });
     }
     if (method === 'POST' && sub === '/codes') return this.adminCreateCode(body, now);
     if (method === 'PUT' && sub === '/open') return this.adminOpenCreation(body, now);
     if (method === 'PUT' && sub === '/donation') return this.adminDonation(body, now);
+    if (method === 'PUT' && sub === '/ideas') return this.adminIdeas(body, now);
     if (method === 'DELETE' && revoke) {
       this.admin.revokeCode(revoke[1], now);
       return noContent();
@@ -378,6 +381,19 @@ export class App {
     return noContent();
   }
 
+  /** Geschenkvorschläge des Ideen-Würfels (2.12): { mode: builtin|extend|replace, items: [{ max, de, en }] }. */
+  adminIdeas(b, now) {
+    let next;
+    try {
+      next = saveIdeas(this.db, b);
+    } catch (e) {
+      if (e instanceof IdeasError) throw new HttpError(400, 'invalid_ideas', e.message);
+      throw e;
+    }
+    this.admin.log(now, 'Geschenkvorschläge', describeIdeas(next));
+    return json({ ideas: next });
+  }
+
   /** Unterstützungslink des Betreibers (2.12): an/aus, Adresse (nur https), Linktext, kurzer Hinweis. */
   adminDonation(b, now) {
     for (const f of ['url', 'label', 'note']) if (get(b, f) !== null && typeof get(b, f) !== 'string') fail(f);
@@ -478,6 +494,7 @@ export class App {
       noAccessLogs: Boolean(this.config.privacy.no_access_logs),
       backupDays: Math.max(0, Math.min(365, Math.trunc(Number(this.config.privacy.backup_days) || 0))),
       mailProvider: transport === 'brevo' || transport === 'smtp' ? transport : null,
+      sourceUrl: this.config.source_url,
       // Unterstützungslink des Betreibers (2.12), nur wenn eingeschaltet
       donation: publicDonation(this.db),
       version: VERSION,

@@ -9,6 +9,9 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULTS = {
   db_path: null,
   base_url: '',
+  // Link „Quellcode“ in Fußzeile, Impressum und Lizenzen. Wer ZeroWichtel verändert betreibt, trägt hier den eigenen
+  // Quellcode ein (EUPL-1.2). Nur https; ungültig → Standard.
+  source_url: 'https://github.com/peterrtz/zerowichtel',
   server_key: '',
   require_organizer_code: true,
   max_participants: 50,
@@ -42,6 +45,14 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const int = (v) => Math.trunc(Number(v)) || 0;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, int(v)));
 
+function safeSourceUrl(v) {
+  try {
+    const u = new URL(String(v));
+    if (u.protocol === 'https:' && !u.username && !u.password && u.href.length <= 300) return u.href;
+  } catch { /* Standard */ }
+  return DEFAULTS.source_url;
+}
+
 /** Ergänzt Standardwerte und prüft Pflichtangaben. Wirft bei unbrauchbarer Konfiguration. */
 export function normalizeConfig(input, baseDir = process.cwd()) {
   const cfg = { ...DEFAULTS, ...input };
@@ -63,6 +74,7 @@ export function normalizeConfig(input, baseDir = process.cwd()) {
   }
   cfg.server_key_raw = key;
 
+  cfg.source_url = safeSourceUrl(cfg.source_url);
   cfg.max_participants = clamp(cfg.max_participants, 3, 50);
   cfg.admin.session_minutes = clamp(cfg.admin.session_minutes, 5, 120);
   return cfg;

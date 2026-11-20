@@ -8,6 +8,9 @@ Kein neues Datenbankschema (Einstellung in der Tabelle `meta`).
 - Nur https-Adressen mit Domainnamen, ohne Zugangsdaten; Linktext höchstens 40, Hinweis höchstens 200 Zeichen. Gewöhnlicher Link: neuer Tab, kein Opener, kein Referrer; nichts wird eingebettet oder vorab geladen (im Browser-Test geprüft).
 - Der Admin-Bereich warnt bei Tracking-Angaben in der Adresse und entfernt sie auf Knopfdruck. Die Wunschlink-Bereinigung entfernt jetzt auch `adjust_…`-Kennungen.
 - Die Datenschutzerklärung nennt den Link automatisch, solange er eingeschaltet ist. Das Protokoll speichert nur Linktext und Domain.
+- **Geschenkvorschläge pflegbar:** Im Admin-Bereich (Karte „Geschenkvorschläge (Ideen-Würfel)“) lässt sich die Liste des Ideen-Würfels ergänzen („Standardliste plus eigene“) oder ersetzen („Nur eigene“), je Preisklasse (bis 5/10/20/30/50 €, über 50 €), Deutsch und optional Englisch. „Standardliste als Vorlage übernehmen“ lädt die mitgelieferte Liste zum Bearbeiten. Höchstens 200 Vorschläge à 120 Zeichen. Auf der Konsole: `zw ideas export`, `zw ideas import < datei.json`, `zw ideas reset`. Die App holt die Liste erst beim ersten Würfeln von `/api/ideas`; ohne Verbindung gilt die Standardliste. Passt kein Vorschlag zum Betragslimit, sagt der Würfel das.
+- **Fußzeile aufgeräumt:** zwei Zeilen (oben die Seiten, unten Einstellungen und Hinweise). „Design wie Gerät“ ist jetzt eine kleine Auswahl mit Symbol (Wie Gerät / Hell / Dunkel), immer sichtbar und mit dem Sonne/Mond-Schalter oben abgeglichen. „Verschlüsselung“ entfällt in der Fußzeile (bleibt oben über das Schloss erreichbar).
+- **Quellcode-Link** in Fußzeile, Impressum und Lizenzen (Standard: das GitHub-Repository). Wer ZeroWichtel verändert betreibt, setzt in `config.json` `source_url` auf den eigenen Code (nur https).
 - Installationsanleitungen nennen die aktuelle Paketversion statt 2.6.0.
 
 ## 2.11.0 – 2026-11-18

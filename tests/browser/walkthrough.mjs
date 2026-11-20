@@ -83,10 +83,7 @@ try {
   await shot(page, 'verschluesselung');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.querySelector('dialog.modal').open && document.activeElement?.id === 'crypto-info', { polling: 100 });
-  await page.click('#crypto-info-footer');
-  await page.waitForFunction(() => document.querySelector('dialog.modal').open, { polling: 100 });
-  await page.click('.dialog-close');
-  await page.waitForFunction(() => !document.querySelector('dialog.modal').open, { polling: 100 });
+  if (await page.$('#crypto-info-footer')) problems.push('„Verschlüsselung“ steht noch in der Fußzeile');
 
   // Hintergrundmusik: aus beim Laden, Notensymbol schaltet ein und aus; Quelle unter #lizenzen
   const pressed = () => page.$eval('#music-toggle', (b) => b.getAttribute('aria-pressed'));

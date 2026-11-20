@@ -77,5 +77,5 @@ function open() {
 }
 
 export function initCryptoInfo() {
-  for (const id of ['crypto-info', 'crypto-info-footer']) document.getElementById(id)?.addEventListener('click', open);
+  for (const id of ['crypto-info']) document.getElementById(id)?.addEventListener('click', open);
 }

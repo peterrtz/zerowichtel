@@ -4,7 +4,7 @@
 import { h, add, clear } from '../lib/dom.js';
 import { t, tn } from '../lib/i18n.js';
 import { calendarDaysUntil, formatDate, euro } from '../lib/dates.js';
-import { rollIdea, adventTip } from '../lib/ideas.js';
+import { rollIdea, adventTip, loadIdeas } from '../lib/ideas.js';
 import { reducedMotion, snowWanted, setSnowWanted, startSnow, stopSnow, snowRunning } from '../lib/snow.js';
 
 // ---------- Countdown
@@ -117,9 +117,12 @@ export function ideaDice(budget) {
   let last = null;
   const out = h('p', { class: 'idea-out', 'aria-live': 'polite' });
   const btn = h('button', { type: 'button', class: 'btn btn-small' }, t('Idee würfeln'));
-  btn.addEventListener('click', () => {
+  // Liste des Betreibers schon beim Anzeigen holen, damit der erste Wurf nicht warten muss
+  loadIdeas();
+  btn.addEventListener('click', async () => {
+    await loadIdeas();
     last = rollIdea(budget, last);
-    out.textContent = last;
+    out.textContent = last ?? t('Für dieses Betragslimit gibt es in der Liste keinen Vorschlag.');
     btn.textContent = t('Noch eine Idee');
   });
   return h('div', { class: 'idea-dice' },

@@ -1,8 +1,11 @@
-// ZeroWichtel – Ideen-Würfel und Adventstürchen. Feste Liste im Code: keine Abfrage, kein Shop, kein Tracking.
+// ZeroWichtel – Ideen-Würfel und Adventstürchen. Standardliste im Code: kein Shop, kein Tracking.
 // Jeder Eintrag: [deutsch, englisch].
+// Ab 2.12 kann der Betreiber die Liste im Admin-Bereich ergänzen oder ersetzen; die App holt sie dann einmal von
+// /api/ideas (eigener Server, ohne Personenbezug). Ohne Verbindung gilt die Standardliste.
 
 import { lang } from './i18n.js';
 import { cryptoRandomInt } from './draw.js';
+import { api } from './api.js';
 
 /** Ideen nach Preisklasse (Obergrenze in Euro). Eine Idee passt in ihre Klasse und alle teureren. */
 export const IDEAS = [
@@ -51,18 +54,48 @@ export const IDEAS = [
   ]],
 ];
 
-const pick = (pair) => (lang() === 'en' ? pair[1] : pair[0]);
+const pick = (pair) => (lang() === 'en' ? pair[1] || pair[0] : pair[0]);
 
-/** Alle Ideen bis zum Betragslimit (null = ohne Limit). */
-export function ideasFor(budget) {
-  const max = budget === null || budget === undefined ? Infinity : Number(budget);
-  // Klasse i reicht von IDEAS[i-1][0] bis IDEAS[i][0]; sie passt, wenn ihre Untergrenze unter dem Limit liegt.
-  return IDEAS.filter((_, i) => i === 0 || IDEAS[i - 1][0] < max).flatMap(([, list]) => list);
+const CLASSES = [5, 10, 20, 30, 50, Infinity];
+const LIMITS = { items: 200, text: 120 };
+
+/** Liste des Betreibers defensiv lesen (nie dem Inhalt vertrauen). Gibt null für „Standardliste“. */
+export function readIdeas(raw) {
+  if (!raw || typeof raw !== 'object' || !['extend', 'replace'].includes(raw.mode) || !Array.isArray(raw.items)) return null;
+  const clean = (v) => (typeof v === 'string' ? [...v.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()].slice(0, LIMITS.text).join('') : '');
+  const items = raw.items.slice(0, LIMITS.items)
+    .map((it) => ({ max: it?.max === null ? Infinity : it?.max, de: clean(it?.de), en: clean(it?.en) }))
+    .filter((it) => CLASSES.includes(it.max) && it.de);
+  if (raw.mode === 'replace' && !items.length) return null;
+  return { mode: raw.mode, items };
 }
 
-/** Zufällige Idee (nicht dieselbe wie zuletzt). */
-export function rollIdea(budget, last = null, rnd = cryptoRandomInt) {
-  const list = ideasFor(budget).map(pick);
+/** Standardliste, ergänzt oder ersetzt durch die Liste des Betreibers; immer alle sechs Preisklassen. */
+export function buildClasses(source = null) {
+  const own = (max) => (source?.items ?? []).filter((it) => it.max === max).map((it) => [it.de, it.en]);
+  return CLASSES.map((max, i) => [max, source?.mode === 'replace' ? own(max) : [...IDEAS[i][1], ...own(max)]]);
+}
+
+let active = buildClasses();
+let loading = null;
+
+/** Liste des Betreibers einmal je Seitenaufruf laden. Fehler (offline, alter Server) = Standardliste. */
+export function loadIdeas() {
+  loading ??= api('GET', '/ideas').then((r) => { active = buildClasses(readIdeas(r)); }).catch(() => {});
+  return loading;
+}
+
+/** Alle Ideen bis zum Betragslimit (null = ohne Limit). */
+export function ideasFor(budget, classes = active) {
+  const max = budget === null || budget === undefined ? Infinity : Number(budget);
+  // Klasse i reicht von classes[i-1][0] bis classes[i][0]; sie passt, wenn ihre Untergrenze unter dem Limit liegt.
+  return classes.filter((_, i) => i === 0 || classes[i - 1][0] < max).flatMap(([, list]) => list);
+}
+
+/** Zufällige Idee (nicht dieselbe wie zuletzt); null, wenn keine passt. */
+export function rollIdea(budget, last = null, rnd = cryptoRandomInt, classes = active) {
+  const list = ideasFor(budget, classes).map(pick);
+  if (!list.length) return null;
   if (list.length < 2) return list[0];
   let idea;
   do { idea = list[rnd(list.length)]; } while (idea === last);

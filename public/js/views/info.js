@@ -90,7 +90,7 @@ function privacy(info) {
     card('6. Speicherung in deinem Browser',
       h('p', null, 'Damit du deine Runden wiederfindest, speichert die App deine Links und ggf. deinen Wiederherstellungscode im lokalen Speicher dieses Browsers (localStorage). Das ist für den von dir gewünschten Dienst unbedingt erforderlich (§ 25 Abs. 2 Nr. 2 TDDDG). Du kannst die Einträge jederzeit auf der Startseite entfernen. Der Server erfährt davon nichts.'),
       h('p', null, 'Stellst du eine anonyme Rückfrage, speichert die App den Schlüssel zum Abholen der Antwort und deinen Fragetext nur hier im lokalen Speicher; ohne ihn ist die Antwort für dich nicht abrufbar. Bei der analogen Wichtelrunde zum Ausdrucken speichert die App deine Eingaben (Namen, Termine, Lose) ebenfalls nur im lokalen Speicher dieses Browsers, damit sie ein Neuladen überstehen – bis du „Alles löschen“ wählst. Auch das ist unbedingt erforderlich für den von dir gewünschten Dienst (§ 25 Abs. 2 Nr. 2 TDDDG). Der Server erfährt davon nichts.'),
-      h('p', null, 'Wählst du mit Sonne/Mond ein Design, wird diese Wahl ebenfalls nur in diesem Browser gespeichert („Design wie Gerät“ im Fußbereich entfernt sie).'),
+      h('p', null, 'Wählst du mit Sonne/Mond ein Design, wird diese Wahl ebenfalls nur in diesem Browser gespeichert („Wie Gerät“ in der Design-Auswahl im Fußbereich entfernt sie).'),
       h('p', null, 'Ebenso nur lokal gespeichert werden, falls du sie nutzt: die gewählte Sprache, ob Schneefall an ist, welche Päckchen du schon ausgepackt hast, und der Spielstand beim Schrottwichteln.'),
       h('p', null, 'Speicherst du deinen Wiederherstellungscode „als Bild“, erzeugt dein Browser das Bild selbst. Lädst du zum Wiederherstellen ein Bild hoch, wird es nur in deinem Browser gelesen und nicht übertragen. Wo du das Bild ablegst (z. B. eine Fotomediathek mit Cloud-Abgleich), entscheidest du.'),
       h('p', null, 'Die Kalenderdatei („In den Kalender“) erzeugt dein Browser selbst; der Server ist daran nicht beteiligt. Was du in deinen Kalender übernimmst, verarbeitet dein Kalenderanbieter nach dessen Bedingungen.')),
@@ -125,7 +125,7 @@ function imprint(info) {
     card('Angaben gemäß § 5 DDG und § 18 Abs. 1 MStV', operatorBlock(info.operator)),
     card('Verantwortlich für den Inhalt', h('p', null, info.operator.name || MISSING)),
     card('Quellcode',
-      h('p', null, 'ZeroWichtel ist freie Software unter der Europäischen Union Public Licence (EUPL-1.2).')),
+      h('p', null, 'ZeroWichtel ist freie Software unter der Europäischen Union Public Licence (EUPL-1.2). Quellcode: ', ext(info.sourceUrl || SOURCE, (info.sourceUrl || SOURCE).replace(/^https:\/\//, '')), '.')),
     card('Hinweis',
       h('p', null, 'ZeroWichtel ist ein privates, nicht-kommerzielles Angebot. Der Betreiber hat keinen Zugriff auf die Inhalte der Wichtelrunden und kann diese weder einsehen noch wiederherstellen.')),
     card('Nutzungsvorbehalt',
@@ -175,12 +175,14 @@ function accessibility(info) {
 }
 
 const ext = (href, text) => h('a', { href, rel: 'noopener noreferrer' }, text);
+const SOURCE = 'https://github.com/peterrtz/zerowichtel';
 
 function licenses(info) {
   return [
     h('h1', null, t('Lizenzen und Quellen')),
     card('ZeroWichtel',
-      h('p', null, t('Quellcode und App stehen unter der'), ' ', ext('https://interoperable-europe.ec.europa.eu/collection/eupl/eupl-text-eupl-12', 'European Union Public Licence (EUPL) 1.2'), '. ', t('Ausgenommen sind die unten genannten Bestandteile; für sie gelten ihre eigenen Lizenzen.'))),
+      h('p', null, t('Quellcode und App stehen unter der'), ' ', ext('https://interoperable-europe.ec.europa.eu/collection/eupl/eupl-text-eupl-12', 'European Union Public Licence (EUPL) 1.2'), '. ', t('Ausgenommen sind die unten genannten Bestandteile; für sie gelten ihre eigenen Lizenzen.')),
+      h('p', null, t('Quellcode:'), ' ', ext(info.sourceUrl || SOURCE, (info.sourceUrl || SOURCE).replace(/^https:\/\//, '')))),
     card(t('Hintergrundmusik'),
       h('dl', { class: 'facts' },
         h('dt', null, t('Titel')), h('dd', null, '„Christmas – Christmas Background Music“'),

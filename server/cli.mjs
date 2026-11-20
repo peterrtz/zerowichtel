@@ -5,6 +5,8 @@ import { Admin, MAX_FAILURES, MIN_PASSWORD, RECOVERY_COUNT, totp } from './admin
 import { codeHash, createCode } from './codes.mjs';
 import { openSettings, openStatus, saveOpenSettings, describeOpen, OPEN_MAX } from './open-creation.mjs';
 import { donationSettings, saveDonation, describeDonation, DonationError, DONATION_LABEL } from './donation.mjs';
+import { ideasSettings, saveIdeas, describeIdeas, IdeasError } from './ideas.mjs';
+import { readFileSync } from 'node:fs';
 import { all, run } from './db.mjs';
 import qrcode from '../public/js/vendor/qrcode.mjs';
 
@@ -228,6 +230,51 @@ export function donationCommand(db, config, args) {
       break;
     default:
       out('Verwendung:\n  zw donation status\n  zw donation set --url https://… [--label "Linktext"] [--note "kurzer Hinweis"] [--rounds on|off]\n  zw donation on | off');
+  }
+}
+
+// ------------------------------------------------------------------ zw ideas
+
+/**
+ * Geschenkvorschläge: zw ideas [status] | export | import (JSON auf der Standardeingabe) | reset
+ * Format: { "mode": "builtin|extend|replace", "items": [{ "max": 5|10|20|30|50|null, "de": "…", "en": "…" }] }
+ */
+export function ideasCommand(db, config, args) {
+  const log = (s, how) => new Admin(db, config.server_key_raw).log(nowSec(), 'Geschenkvorschläge', `${describeIdeas(s)} (${how})`);
+  switch (args[0]) {
+    case 'export':
+      process.stdout.write(`${JSON.stringify(ideasSettings(db), null, 2)}\n`);
+      break;
+    case 'import': {
+      let input;
+      try {
+        input = JSON.parse(readFileSync(0, 'utf8'));
+      } catch (e) {
+        throw new CliError(`Import: kein gültiges JSON auf der Standardeingabe (${e.message}).`);
+      }
+      try {
+        const s = saveIdeas(db, input);
+        log(s, 'Kommandozeile, Import');
+        out(`Geschenkvorschläge: ${describeIdeas(s)}`);
+      } catch (e) {
+        if (e instanceof IdeasError) throw new CliError(`Import: ${e.message}`);
+        throw e;
+      }
+      break;
+    }
+    case 'reset': {
+      // Eigene Vorschläge bleiben gespeichert, nur die Standardliste wird wieder aktiv
+      const s = saveIdeas(db, { ...ideasSettings(db), mode: 'builtin' });
+      log(s, 'Kommandozeile');
+      out(`Geschenkvorschläge: ${describeIdeas(s)}`);
+      break;
+    }
+    case 'status':
+    case undefined:
+      out(`Geschenkvorschläge: ${describeIdeas(ideasSettings(db))}`);
+      break;
+    default:
+      out('Verwendung:\n  zw ideas status\n  zw ideas export > ideen.json\n  zw ideas import < ideen.json      (Docker: docker exec -i zerowichtel zw ideas import < ideen.json)\n  zw ideas reset                    (wieder Standardliste; eigene Vorschläge bleiben gespeichert)');
   }
 }
 

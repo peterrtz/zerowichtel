@@ -188,7 +188,7 @@ admin_bereich:
   sperre: nach 5 Fehlversuchen 15 Minuten, für alle
   sitzung: 30 Minuten fest, nur im geöffneten Tab, keine Cookies
   adresse: geheimer Pfad; falsch, ausgeschaltet oder nicht eingerichtet = 404 wie jede unbekannte Adresse
-  kann: Codes erzeugen (mit Teilen-Menü, QR und Direktlink), auflisten, widerrufen; Anlegen ohne Code; Unterstützungslink; Zähler; Protokoll ohne IP
+  kann: Codes erzeugen (mit Teilen-Menü, QR und Direktlink), auflisten, widerrufen; Anlegen ohne Code; Unterstützungslink; Geschenkvorschläge; Zähler; Protokoll ohne IP
   kann_nicht: Runden, Namen, Wünsche, Zuordnungen sehen; config.json ändern
 ```
 
@@ -224,6 +224,15 @@ unterstuetzungslink:
   tracking: Admin-Bereich warnt bei Kampagnen-/Klick-Kennungen (utm_…, adjust_…, fbclid …) und bietet „Tracking-Angaben entfernen“
   datenschutz: die Datenschutzerklärung nennt den Link automatisch, solange er eingeschaltet ist
   protokoll: nur an/aus, Linktext und Domain – nicht die vollständige Adresse
+```
+
+Geschenkvorschläge des Ideen-Würfels (ab 2.12) – im Admin-Bereich oder als JSON-Datei:
+
+```sh
+sudo docker exec zerowichtel zw ideas export > ideen.json        # sichern bzw. Vorlage
+nano ideen.json                                                   # mode: builtin | extend | replace
+sudo docker exec -i zerowichtel zw ideas import < ideen.json      # -i: Datei über die Standardeingabe
+sudo docker exec zerowichtel zw ideas reset                       # wieder Standardliste (eigene bleiben gespeichert)
 ```
 
 Passwort und Notfallcodes gehören in den Passwortmanager. Wenn Handy und Notfallcodes weg sind: per SSH `zw admin totp` – der Konsolenzugang bleibt immer der Rückweg.

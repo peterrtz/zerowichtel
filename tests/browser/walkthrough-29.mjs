@@ -203,6 +203,8 @@ try {
     await clickText(b, 'Deine Lieder ändern');
     await fill(b, []);
     await waitText(b, 'Deine Lieder sind entfernt.');
+    // Erst nach dem Neuaufbau der Karte weiter (sonst landet die Eingabe in der alten Karte)
+    await waitText(b, 'Deine Lieder eintragen');
     await fill(b, [['last christmas', 'WHAM!']]);
     await waitText(b, 'Lieder gespeichert.');
   });

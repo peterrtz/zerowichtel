@@ -73,6 +73,7 @@ export async function startServer(o = {}) {
     client_ip_header: 'X-Forwarded-For',
     admin: { enabled: o.admin ?? false },
     ...(o.rateLimits ? { rate_limits: o.rateLimits } : {}),
+    ...(o.sourceUrl !== undefined ? { source_url: o.sourceUrl } : {}),
     ...(o.mail === false ? {} : { mail: { transport: 'log', from_email: 'noreply@zw.example', log_path: mailLog } }),
   };
   // Zufälliger Port unterhalb des Linux-Bereichs für ausgehende Verbindungen (ab 32768); ist er doch belegt
@@ -164,8 +165,10 @@ export async function startServer(o = {}) {
     },
     /** Kommandozeile „zw …“ gegen die Testdatenbank (nur Node); liefert { status, out }. */
     cli(...args) {
+      // Letztes Argument { input: '…' } = Text auf der Standardeingabe
+      const input = typeof args.at(-1) === 'object' ? args.pop().input : undefined;
       try {
-        return { status: 0, out: execFileSync(process.execPath, [join(ROOT, 'server', 'main.mjs'), ...args], { env: { ...process.env, ZW_CONFIG: cfgPath }, stdio: ['ignore', 'pipe', 'pipe'] }).toString() };
+        return { status: 0, out: execFileSync(process.execPath, [join(ROOT, 'server', 'main.mjs'), ...args], { env: { ...process.env, ZW_CONFIG: cfgPath }, input, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] }).toString() };
       } catch (e) { return { status: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` }; }
     },
     mails: () => (existsSync(mailLog) ? readFileSync(mailLog, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []),

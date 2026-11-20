@@ -24,7 +24,7 @@ await call('POST', '/invite/claim', { accessHash: h(acc), pubkey: b64u(crypto.ra
 
 const auths = [null, '', 'x', `a.${rid}.${adminTok}`, `i.${pid}.${inv}`, `p.${pid}.${acc}`, `g.${rid}.${acc}`, `r.${pid}.${adminTok}`, `a.${rid}.${nid()}`, 'a..', 'a'.repeat(5000), `x.${nid()}.${nid()}`, `q.${rid}.${nid()}`, `k.${nid()}.${nid()}`];
 const endpoints = [
-  ['GET', '/info'], ['POST', '/organizer/check'], ['POST', '/rounds'], ['GET', `/rounds/${rid}/admin`], ['PATCH', `/rounds/${rid}`],
+  ['GET', '/info'], ['GET', '/ideas'], ['POST', '/organizer/check'], ['POST', '/rounds'], ['GET', `/rounds/${rid}/admin`], ['PATCH', `/rounds/${rid}`],
   ['POST', `/rounds/${rid}/participants`], ['PATCH', `/rounds/${rid}/participants/${pid}`], ['POST', `/rounds/${rid}/participants/${pid}/reinvite`],
   ['POST', `/rounds/${rid}/participants/${pid}/remind`], ['PUT', `/rounds/${rid}/participants/${pid}/email`], ['GET', `/rounds/${rid}/keys`],
   ['PUT', `/rounds/${rid}/draw`], ['GET', '/invite'], ['POST', '/invite/claim'], ['GET', '/me'], ['PUT', '/me/rsvp'], ['PUT', '/me/wishes'],
@@ -35,7 +35,7 @@ const endpoints = [
   ['DELETE', `/rounds/${nid()}`], ['POST', `/admin/${'a'.repeat(26)}/login`], ['GET', '/admin/x'],
   // seit 2.3: Gruppenlink, Rätselhinweise; 2.4: Admin „Anlegen ohne Code“; 2.5: Team-Wichteln
   ['PUT', `/rounds/${rid}/join`], ['DELETE', `/rounds/${rid}/join`], ['GET', '/join'], ['POST', '/join'],
-  ['POST', '/mailbox/hints'], ['DELETE', `/mailbox/hints/${nid()}`], ['PUT', `/admin/${'a'.repeat(26)}/open`], ['PUT', `/admin/${'a'.repeat(26)}/donation`],
+  ['POST', '/mailbox/hints'], ['DELETE', `/mailbox/hints/${nid()}`], ['PUT', `/admin/${'a'.repeat(26)}/open`], ['PUT', `/admin/${'a'.repeat(26)}/donation`], ['PUT', `/admin/${'a'.repeat(26)}/ideas`],
   ['PUT', '/me/team'], ['PUT', `/rounds/${rid}/participants/${pid}/team`],
 ];
 const fields = ['id', 'adminHash', 'mode', 'rsvpDeadline', 'wishDeadline', 'eventDate', 'metaCt', 'adminCt', 'organizerCode', 'inviteHash', 'inviteCt',

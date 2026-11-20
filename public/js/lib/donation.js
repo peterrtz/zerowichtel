@@ -8,9 +8,27 @@ import { t } from './i18n.js';
 let pending = null;
 
 /** Liest den Link einmal je Seitenaufruf. Fehler (offline, alter Server) = kein Link. */
+let infoPending = null;
+/** /api/info einmal je Seitenaufruf (Fehler = null). */
+export function loadInfo() {
+  infoPending ??= api('GET', '/info').catch(() => null);
+  return infoPending;
+}
+
 export function loadDonation() {
-  pending ??= api('GET', '/info').then((info) => readDonation(info?.donation)).catch(() => null);
+  pending ??= loadInfo().then((info) => readDonation(info?.donation));
   return pending;
+}
+
+/** Quellcode-Link der Fußzeile auf die Adresse des Betreibers setzen, falls er eine eigene angibt (nur https). */
+export async function initFooterSource() {
+  const info = await loadInfo();
+  const a = document.getElementById('source-link');
+  if (!a || typeof info?.sourceUrl !== 'string') return;
+  try {
+    const u = new URL(info.sourceUrl);
+    if (u.protocol === 'https:' && !u.username && !u.password) a.href = u.href;
+  } catch { /* Standard bleibt */ }
 }
 
 /** Defensiv lesen: nur https, Texte begrenzt. */
@@ -37,10 +55,10 @@ export function donationLink(d, cls = null) {
 /** Link in der Fußzeile ergänzen (einmal beim Start). */
 export async function initFooterDonation() {
   const d = await loadDonation();
-  const foot = document.querySelector('footer.footer');
-  if (!d || !foot || foot.querySelector('[data-donation]')) return;
+  const row = document.querySelector('footer.footer .footer-meta');
+  if (!d || !row || row.querySelector('[data-donation]')) return;
   const a = donationLink(d, 'footer-donate');
-  foot.insertBefore(a, foot.querySelector('span') ?? null);
+  row.insertBefore(a, row.querySelector('.footer-legal'));
   document.addEventListener('zw:lang', () => {
     a.textContent = donationLabel(d);
     a.title = t('Öffnet {host} in einem neuen Tab', { host: new URL(d.url).hostname });

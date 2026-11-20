@@ -214,11 +214,18 @@ try {
   await t.reload({ waitUntil: 'domcontentloaded' });
   const early = await t.evaluate(() => ({ theme: document.documentElement.dataset.theme, bg: getComputedStyle(document.body).backgroundColor }));
   if (early.theme !== 'dark' || early.bg !== 'rgb(17, 22, 18)') problems.push(`Nach Neuladen nicht dunkel: ${JSON.stringify(early)}`);
-  const resetVisible = await t.$eval('#theme-reset', (b) => !b.hidden);
-  if (!resetVisible) problems.push('„Design wie Gerät“ nicht sichtbar');
-  await t.click('#theme-reset');
-  const after = await t.evaluate(() => ({ theme: document.documentElement.dataset.theme ?? null, stored: localStorage.getItem('zw.theme'), resetHidden: document.getElementById('theme-reset').hidden }));
-  if (after.theme !== null || after.stored !== null || !after.resetHidden) problems.push(`Zurücksetzen: ${JSON.stringify(after)}`);
+  // Design-Auswahl in der Fußzeile folgt dem Umschalter oben und setzt mit „Wie Gerät“ zurück
+  const selVal = await t.$eval('#theme-select', (s) => s.value);
+  if (selVal !== 'dark') problems.push(`Design-Auswahl zeigt „${selVal}“ statt „dark“`);
+  await t.select('#theme-select', '');
+  const after = await t.evaluate(() => ({ theme: document.documentElement.dataset.theme ?? null, stored: localStorage.getItem('zw.theme') }));
+  if (after.theme !== null || after.stored !== null) problems.push(`Zurücksetzen: ${JSON.stringify(after)}`);
+  await t.select('#theme-select', 'light');
+  const forced = await t.evaluate(() => ({ theme: document.documentElement.dataset.theme, label: document.getElementById('theme-toggle').getAttribute('aria-label') }));
+  if (forced.theme !== 'light' || forced.label !== 'Dunkles Design einschalten') problems.push(`Hell per Auswahl: ${JSON.stringify(forced)}`);
+  const sel = await t.$eval('label.footer-theme', (l) => ({ name: l.textContent.replace(/\s+/g, ' ').trim() }));
+  if (!sel.name.startsWith('Design')) problems.push(`Design-Auswahl ohne Namen: ${sel.name}`);
+  await t.select('#theme-select', '');
   // Hell erzwingen bei dunklem Gerät
   const t2 = await newPage({ scheme: 'dark' });
   await t2.goto(`${srv.base}/`, { waitUntil: 'networkidle0' });
