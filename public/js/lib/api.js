@@ -27,6 +27,16 @@ export class ApiError extends Error {
   }
 }
 
+// Veraltete Zugangsdaten (2.13.2): Die geöffnete Seite meldet sich hier an und lädt sich neu, statt nur
+// „Nicht gefunden“ zu zeigen – z. B. wenn der Zugang auf einem anderen Gerät wiederhergestellt wurde.
+let staleHandler = null;
+let staleFiredAt = 0;
+
+/** Rückruf für veraltete Zugangsdaten setzen (null = keiner). */
+export function setStaleLinkHandler(fn) {
+  staleHandler = typeof fn === 'function' ? fn : null;
+}
+
 export async function api(method, path, { body, auth } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -50,6 +60,13 @@ export async function api(method, path, { body, auth } = {}) {
     data = await res.json();
   } catch {
     if (!res.ok) throw new ApiError(res.status, 'http', t('Serverfehler ({status}).', { status: res.status }));
+  }
+  if (res.status === 404 && data?.error === 'invalid_link' && staleHandler && Date.now() - staleFiredAt > 5000) {
+    const fn = staleHandler;
+    staleHandler = null; // höchstens einmal je Seite – kein Neuladen im Kreis
+    staleFiredAt = Date.now();
+    setTimeout(fn, 0);
+    throw new ApiError(404, 'invalid_link', t('Diese Seite war nicht mehr aktuell. Sie wird neu geladen.'));
   }
   if (!res.ok) throw new ApiError(res.status, data?.error ?? 'http', data?.message ? t(data.message) : t('Fehler {status}', { status: res.status }));
   return data;

@@ -1,5 +1,14 @@
 # Änderungen
 
+## 2.13.2 – 2026-11-20
+
+Kein neues Datenbankschema.
+
+- **Fehler behoben (Bedienung):** Wer die Runde auf einem zweiten Gerät über den QR-Code des Wiederherstellungscodes geöffnet hatte, bekam auf dem ersten Gerät beim nächsten Speichern (etwa „Speichern & festlegen“) nur „Nicht gefunden oder Link ungültig“. Ursache: Das Einlösen des Wiederherstellungscodes erzeugt absichtlich einen neuen Zugang und meldet alle bisherigen Geräte ab (gedacht für ein verlorenes Gerät). Das war auf der Seite nicht zu erkennen.
+- **Neu: „Auf weiterem Gerät öffnen“** unter „Mein Zugang“: ein QR-Code mit dem persönlichen Link, erst auf Knopfdruck sichtbar. Damit ist die Runde auf Laptop und Handy gleichzeitig offen; es entsteht kein neuer Zugang.
+- Am Wiederherstellungscode steht jetzt deutlich „Nur für den Notfall“ und dass er die bisherigen Geräte abmeldet.
+- Ist der Zugang auf einem Gerät inzwischen ungültig (wiederhergestellt, neu eingeladen, neu ausgelost), lädt die Seite beim nächsten Klick neu und erklärt, was los ist, statt nur eine Fehlermeldung zu zeigen. Dafür meldet der Server bei nicht passenden Zugangsdaten von Personen und Postfächern den Code `invalid_link` (Status und Meldungstext unverändert 404 „Nicht gefunden oder Link ungültig.“).
+
 ## 2.13.1 – 2026-11-20
 
 Kein neues Datenbankschema.

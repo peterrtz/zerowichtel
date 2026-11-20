@@ -1305,6 +1305,16 @@ export const EN = {
   "Ziehung": "Draw",
   "Checkliste": "Checklist",
   "Runde löschen": "Delete round",
+  // 2.13.2: zweites Gerät, veraltete Zugangsdaten
+  "Diese Seite war nicht mehr aktuell. Sie wird neu geladen.": "This page was out of date. Reloading it now.",
+  "Wurde der Wiederherstellungscode auf einem anderen Gerät eingelöst, gilt nur noch der Zugang dort. Öffne die Runde auf dem anderen Gerät und hol dir von dort mit „Auf weiterem Gerät öffnen“ den Zugang auch hierher.": "If the recovery code was redeemed on another device, only the access there is valid. Open the round on that device and use “Open on another device” to bring access here as well.",
+  "Nur für den Notfall:": "For emergencies only:",
+  "Wer den Code einlöst, bekommt einen neuen Zugang – auf allen bisherigen Geräten ist die Runde dann abgemeldet. Für ein zweites Gerät nimm „Auf weiterem Gerät öffnen“.": "Redeeming the code creates new access – the round is then signed out on every previous device. For a second device, use “Open on another device”.",
+  "Auf weiterem Gerät öffnen": "Open on another device",
+  "Scanne den Code mit der Kamera des anderen Geräts (z. B. Handy). Die Runde ist dann auf beiden Geräten offen. Den Code niemandem zeigen – er enthält deinen Schlüssel.": "Scan the code with the other device's camera (e.g. your phone). The round is then open on both devices. Don't show the code to anyone – it contains your key.",
+  "QR-Code mit deinem persönlichen Link": "QR code with your personal link",
+  // 2.13.2
+  "Link nicht mehr gültig": "Link no longer valid",
 };
 
 /** Server-Meldungen mit eingesetzten Werten (Zahlen, Feldnamen). */

@@ -15,6 +15,7 @@ import { navTarget, sectionNav } from './section-nav.js';
 import { donationCard } from '../lib/donation.js';
 import { forgetAnonQuestions } from '../lib/questions.js';
 import { recoveryPng, saveImage } from '../lib/recovery-image.js';
+import { setStaleLinkHandler } from '../lib/api.js';
 
 /** „Was jetzt?“ – die nächsten Schritte aus Sicht der Teilnehmenden, rein aus Status und Terminen. */
 export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams = null, myTeam = null, giftDone = false }) {
@@ -79,6 +80,23 @@ export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams 
   return steps;
 }
 
+/**
+ * Zweites Gerät (2.13.2): QR-Code mit dem persönlichen Link. Anders als der Wiederherstellungscode erzeugt er keinen
+ * neuen Zugang – beide Geräte bleiben angemeldet. Der Code wird erst auf Knopfdruck gezeigt (er enthält den Schlüssel).
+ */
+function secondDevice(link) {
+  const box = h('div', { class: 'second-device-qr' });
+  const details = h('details', { class: 'inline-details second-device' },
+    h('summary', null, t('Auf weiterem Gerät öffnen')),
+    h('p', { class: 'hint' }, t('Scanne den Code mit der Kamera des anderen Geräts (z. B. Handy). Die Runde ist dann auf beiden Geräten offen. Den Code niemandem zeigen – er enthält deinen Schlüssel.')),
+    box);
+  details.addEventListener('toggle', () => {
+    if (details.open && !box.firstChild) box.append(qrSvg(link, { size: 200, label: t('QR-Code mit deinem persönlichen Link') }));
+    if (!details.open) box.replaceChildren();
+  });
+  return details;
+}
+
 export async function renderPerson(root, pctx) {
   setTitle(t('Wichtelrunde'));
   mount(root, loading());
@@ -89,7 +107,9 @@ export async function renderPerson(root, pctx) {
     if (e.status === 404) {
       removeLink({ kind: 'p', roundId: pctx.roundId, pid: pctx.pid });
       mount(root, page(
+        h('h1', null, t('Link nicht mehr gültig')),
         notice(t('Dieser Link ist nicht mehr gültig. Entweder wurde die Runde gelöscht, die Organisator:in hat dich neu eingeladen, oder dein Zugang wurde auf einem anderen Gerät wiederhergestellt.'), 'warn'),
+        h('p', { class: 'hint' }, t('Wurde der Wiederherstellungscode auf einem anderen Gerät eingelöst, gilt nur noch der Zugang dort. Öffne die Runde auf dem anderen Gerät und hol dir von dort mit „Auf weiterem Gerät öffnen“ den Zugang auch hierher.')),
         h('p', null, h('a', { class: 'btn', href: '#wiederherstellen' }, t('Zugang wiederherstellen')), ' ', h('a', { class: 'btn btn-ghost', href: '#' }, t('Startseite'))),
       ));
     } else {
@@ -123,12 +143,14 @@ export async function renderPerson(root, pctx) {
         toast(t('Link verschickt.'), 'ok');
       }, { cls: 'btn btn-small' }))
       : null,
+    secondDevice(link),
     h('h3', null, t('Wiederherstellungscode')),
     code
       ? h('div', { class: 'recovery' },
         h('div', null,
           codeView(code),
           h('p', { class: 'hint' }, t('Falls der Link verloren geht, stellst du damit deinen Zugang wieder her. Ausdrucken oder als Bild speichern – das Bild lässt sich später auf der Startseite unter „Zugang wiederherstellen“ wieder hochladen.')),
+          h('p', { class: 'hint' }, h('strong', null, t('Nur für den Notfall:')), ' ', t('Wer den Code einlöst, bekommt einen neuen Zugang – auf allen bisherigen Geräten ist die Runde dann abgemeldet. Für ein zweites Gerät nimm „Auf weiterem Gerät öffnen“.')),
           h('p', { class: 'hint' }, t('Achtung: Fotos werden oft automatisch in eine Cloud synchronisiert (iCloud, Google Fotos). Wer Zugriff darauf hat, kann deine Runde öffnen – im Zweifel ausdrucken.')),
           h('div', { class: 'share-bar' },
             h('button', { type: 'button', class: 'btn', on: { click: () => printRecovery({ title: meta.title, name, code, link: M.recoveryLink(code) }) } }, t('Ausdrucken')),
@@ -267,4 +289,7 @@ export async function renderPerson(root, pctx) {
     h('p', { class: 'center' }, removeBtn),
   ));
   sectionNav(root);
+  // Zugang inzwischen ungültig (z. B. auf einem anderen Gerät wiederhergestellt) oder neu ausgelost: neu laden –
+  // die Seite erklärt dann, was los ist, statt beim nächsten Klick nur „Nicht gefunden“ zu melden (2.13.2)
+  setStaleLinkHandler(reload);
 }

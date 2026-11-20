@@ -2044,6 +2044,28 @@ CREATE INDEX messages_mailbox ON messages(mailbox_id);
 CREATE TABLE rate_limits (bucket TEXT PRIMARY KEY, window_start INTEGER NOT NULL, hits INTEGER NOT NULL);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`;
 
+test('2.13.2: veraltete Zugangsdaten melden invalid_link, fehlende Dinge weiter not_found', async () => {
+  const e = await Env.make();
+  const [, people] = await drawnRound(e);
+  const a = people[2]; // e.recoveryToken gehört zur zuletzt angenommenen Einladung
+  // Zugang auf anderem Gerät wiederhergestellt: alter Zugang → invalid_link (gleiche Meldung wie bisher)
+  const fresh = nid();
+  eq(200, await e.status('POST', '/recover', { recoveryToken: e.recoveryToken, accessHash: h(fresh) }));
+  let [s, d] = await e.call('PUT', '/me/wishes', { wishCt: ct() }, a.auth);
+  eq([404, 'invalid_link', 'Nicht gefunden oder Link ungültig.'], [s, d.error, d.message]);
+  [s, d] = await e.call('GET', '/me', null, a.auth);
+  eq([404, 'invalid_link'], [s, d.error]);
+  eq(200, await e.status('GET', '/me', null, `p.${a.pid}.${fresh}`));
+  // Postfach mit falschem Token und unbekannte Person
+  [s, d] = await e.call('PUT', '/mailbox/wish', { wishCt: ct() }, `r.${a.mid}.${nid()}`);
+  eq([404, 'invalid_link'], [s, d.error]);
+  [s, d] = await e.call('GET', '/me', null, `p.${nid()}.${nid()}`);
+  eq([404, 'invalid_link'], [s, d.error]);
+  // Unbekannter Endpunkt bleibt not_found
+  [s, d] = await e.call('GET', '/gibtsnicht', null);
+  eq([404, 'not_found'], [s, d.error]);
+});
+
 const filter = process.argv[2] ?? '';
 let failures = 0;
 let count = 0;

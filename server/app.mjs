@@ -27,7 +27,7 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.13.1';
+export const VERSION = '2.13.2';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
@@ -64,6 +64,9 @@ const MAIL_TITLE_MAX = 80;
 const json = (data, status = 200) => ({ status, data });
 const noContent = () => ({ status: 204, data: null });
 const notFound = () => { throw new HttpError(404, 'not_found', 'Nicht gefunden oder Link ungültig.'); };
+// Zugangsdaten einer Person oder eines Postfachs passen nicht (mehr): neu eingeladen, Zugang auf einem anderen Gerät
+// wiederhergestellt, neu ausgelost oder Runde gelöscht. Eigener Code, damit die App das von „Foto gibt es nicht“ unterscheidet.
+const invalidLink = () => { throw new HttpError(404, 'invalid_link', 'Nicht gefunden oder Link ungültig.'); };
 const noMailer = () => new HttpError(409, 'email_unavailable', 'Auf diesem Server ist kein E-Mail-Versand eingerichtet.');
 
 const STATUS_MSG = { gezogen: 'Die Ziehung ist bereits erfolgt.', beendet: 'Die Runde ist beendet.' };
@@ -649,9 +652,9 @@ export class App {
   personByToken(req, role) {
     const [, pid, token] = this.authParts(req, role);
     const p = one(this.db, 'SELECT * FROM participants WHERE id = ?', pid);
-    if (!p || !safeEqual(p[role === 'i' ? 'invite_hash' : 'access_hash'], sha256(token))) notFound();
+    if (!p || !safeEqual(p[role === 'i' ? 'invite_hash' : 'access_hash'], sha256(token))) invalidLink();
     const round = one(this.db, 'SELECT * FROM rounds WHERE id = ?', p.round_id);
-    if (!round) notFound();
+    if (!round) invalidLink();
     return [p, round];
   }
 
@@ -1083,7 +1086,7 @@ export class App {
   mailboxByToken(req, roles) {
     const [role, mid, token] = this.authParts(req, roles);
     const mb = one(this.db, 'SELECT m.*, r.status, r.wish_deadline, r.event_date, r.teams_ct FROM mailboxes m JOIN rounds r ON r.id = m.round_id WHERE m.id = ?', mid);
-    if (!mb || !safeEqual(mb[role === 'g' ? 'giver_hash' : 'receiver_hash'], sha256(token))) notFound();
+    if (!mb || !safeEqual(mb[role === 'g' ? 'giver_hash' : 'receiver_hash'], sha256(token))) invalidLink();
     return [mb, role];
   }
 

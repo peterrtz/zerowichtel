@@ -7,6 +7,7 @@ import { formatDate, formatShort, relative, euro, nowSec } from '../lib/dates.js
 import qrcode from '../vendor/qrcode.mjs';
 import { buildIcs, downloadIcs, icsFilename } from '../lib/ics.js';
 import { t } from '../lib/i18n.js';
+import { setStaleLinkHandler } from '../lib/api.js';
 
 export const MODE_LABEL = { wichteln: 'Wichteln', schrott: 'Schrottwichteln' };
 export const modeLabel = (mode) => (MODE_LABEL[mode] ? t(MODE_LABEL[mode]) : mode);
@@ -213,6 +214,8 @@ function focusKey(el) {
 }
 
 export function mount(root, node) {
+  // Jede neue Ansicht meldet sich selbst neu an, wenn sie veraltete Zugangsdaten behandeln will (2.13.2)
+  setStaleLinkHandler(null);
   // Sprungmenü der vorigen Seite entfernen; Seiten mit Abschnitten bauen es nach dem Einhängen neu (2.13.1)
   if (!node.classList?.contains('loading')) removeSectionNav();
   const nav = navigationPending;

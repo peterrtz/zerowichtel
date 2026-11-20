@@ -7,7 +7,7 @@ Wichteln und Schrottwichteln ohne Konto – als PWA, Ende-zu-Ende-verschlüsselt
 - Die Ziehung läuft im Browser der Organisator:in; jede Zuordnung wird sofort für die jeweilige Person versiegelt.
 - Jede Runde wird spätestens 14 Tage nach dem Wichteldatum endgültig gelöscht.
 
-Version 2.13.1 · Lizenz: [EUPL-1.2](LICENSE)
+Version 2.13.2 · Lizenz: [EUPL-1.2](LICENSE)
 
 Weitere Dokumente: [Installation (Docker + Caddy)](docs/INSTALL-DOCKER-CADDY.md) · [Ohne Docker](docs/INSTALL-OHNE-DOCKER.md) · [Server-Aufbau und API](docs/SERVER.md) · [Sicherheit](docs/SECURITY.md) · [Verarbeitungsverzeichnis und TOM (Entwurf)](docs/DATENSCHUTZ-VVT.md) · [Änderungen](CHANGELOG.md)
 
@@ -25,6 +25,7 @@ Weitere Dokumente: [Installation (Docker + Caddy)](docs/INSTALL-DOCKER-CADDY.md)
 | 2.0 | Server in Node.js (ohne npm-Pakete), gleiche API, Datenübernahme in beide Richtungen geprüft | fertig |
 | 2.3 | Gruppenlink (optional), Checkliste, „Was jetzt?“, Zeitleiste, Einladungskarten, Steckbrief, Tracking-Bereinigung, Päckchen, Rätselhinweise, Raten/Auflösen/Danke, Countdown/Schnee, Ideen-Würfel, Probelauf, englische Oberfläche | fertig |
 | 2.5 | Team-Wichteln: Teams beschenken Teams, Teamwahl durch Teilnehmende, gemeinsamer Team-Wunschzettel; Update- und Rückweg-Test gegen 2.4.0-Daten; Sicherheitsreview R2 | fertig |
+| 2.13.2 | „Auf weiterem Gerät öffnen“ (QR-Code mit dem persönlichen Link, beide Geräte bleiben angemeldet); veralteter Zugang wird erklärt statt „Nicht gefunden“ | fertig |
 | 2.13.1 | Fotos vor dem Hochladen zuschneiden (frei oder 1:1, 4:3, 3:4, 16:9, Original); schwebendes Sprungmenü rechts mit Zahl für neue Fotos | fertig |
 | 2.13 | Adventsalbum: Fotos der Vorweihnachtszeit nur für die Runde (verkleinert, ohne Metadaten, Ende-zu-Ende-verschlüsselt) und PDF-Erinnerungsalbum mit 5 Layouts, 5 Designs, Hoch-/Querformat und Titelblatt | fertig |
 | 2.12 | Geschenkvorschläge im Admin-Bereich pflegbar (ergänzen/ersetzen, Export/Import); Fußzeile in zwei Zeilen mit Design-Auswahl und Quellcode-Link; Unterstützungslink des Betreibers (Admin-Bereich oder `zw donation`): Fußzeile und Startseite, optional auch in den Runden, nur https, ohne Referrer, Warnung bei Tracking-Angaben | fertig |
