@@ -230,7 +230,7 @@ Geschenkvorschläge des Ideen-Würfels (ab 2.12) – im Admin-Bereich oder als J
 
 ```sh
 sudo docker exec zerowichtel zw ideas export > ideen.json        # sichern bzw. Vorlage
-nano ideen.json                                                   # mode: builtin | extend | replace
+nano ideen.json                                                   # mode: builtin | extend | replace; je Vorschlag max, de, en, minAge, maxAge
 sudo docker exec -i zerowichtel zw ideas import < ideen.json      # -i: Datei über die Standardeingabe
 sudo docker exec zerowichtel zw ideas reset                       # wieder Standardliste (eigene bleiben gespeichert)
 ```
@@ -310,6 +310,9 @@ backup:
   befehl: sudo docker exec zerowichtel zw backup        # konsistente Kopie, auch im laufenden Betrieb (VACUUM INTO)
   ziel: /opt/zerowichtel/data/backup/zerowichtel-JJJJMMTT-hhmmss.sqlite   # nur für den Container-Benutzer lesbar (0600)
   rotation: löscht eigene Sicherungen älter als privacy.backup_days (sonst 14 Tage); --keep <tage> überschreibt
+  speicherplatz_ab_2_13: Fotos des Adventsalbums liegen in der Datenbank (höchstens album.round_mb je Runde, Standard 60 MB)
+    und stecken damit in jeder Sicherung – bei vielen Runden mit Album entsprechend mehr Platz einplanen oder
+    album.round_mb senken bzw. album.enabled auf false setzen
   taeglich: |
     # /etc/cron.d/zerowichtel-backup
     17 3 * * * root docker exec zerowichtel zw backup >/dev/null

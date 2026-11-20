@@ -6,6 +6,8 @@ import { t } from './i18n.js';
 const PROP_KEYS = new Set(['value', 'checked', 'selected', 'indeterminate']);
 // Erlaubt: https, mailto, sms, Fragment und relative Pfade – aber keine protokollrelativen URLs (//fremd.example).
 const SAFE_URL = /^(https:|mailto:|sms:|#|\/(?!\/))/i;
+// Blob-URLs nur aus der eigenen Herkunft (2.13: entschlüsselte Fotos, PDF-Download) – die erzeugt nur die App selbst
+const ownBlob = (v) => typeof location !== 'undefined' && String(v).startsWith(`blob:${location.origin}/`);
 
 export function h(tag, props, ...children) {
   const el = document.createElement(tag);
@@ -21,7 +23,7 @@ export function h(tag, props, ...children) {
     else if (k === 'dataset') Object.assign(el.dataset, v);
     else if (PROP_KEYS.has(k)) el[k] = v;
     else if (/^on/i.test(k)) throw new Error('Inline-Handler sind nicht erlaubt');
-    else if ((k === 'href' || k === 'src' || k === 'action') && !SAFE_URL.test(String(v))) throw new Error(`Unsichere URL in ${k}`);
+    else if ((k === 'href' || k === 'src' || k === 'action') && !SAFE_URL.test(String(v)) && !(k !== 'action' && ownBlob(v))) throw new Error(`Unsichere URL in ${k}`);
     else el.setAttribute(k, v === true ? '' : String(v));
   }
   append(el, children);

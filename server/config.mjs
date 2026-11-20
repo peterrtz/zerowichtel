@@ -31,6 +31,7 @@ export const DEFAULTS = {
     admin: [30, 3600],
     analog: [5, 86400], // Zähler „analoge Wichtelrunde vorbereitet“ je Anschluss und Tag
     question_anon: [3, 86400], // anonyme Rückfragen je Anschluss und Tag (2.9)
+    photo: [60, 86400], // Foto-Uploads je Anschluss und Tag (2.13)
   },
   client_ip_header: null, // z. B. 'X-Forwarded-For' hinter einem Reverse Proxy
   operator: { name: '', street: '', city: '', email: '', phone: '' },
@@ -38,6 +39,9 @@ export const DEFAULTS = {
   // nur für die Datenschutzerklärung
   privacy: { mail_provider: '', no_access_logs: false, backup_days: 0 },
   admin: { enabled: false, session_minutes: 30 },
+  // Adventsalbum (2.13): enabled = false schaltet es serverweit ab (bestehende Fotos bleiben bis zur Löschung der Runde);
+  // round_mb = Speicher je Runde, person_photos = Fotos je Person
+  album: { enabled: true, round_mb: 60, person_photos: 12 },
   mail: { transport: null, from_email: '', from_name: 'ZeroWichtel' },
 };
 
@@ -56,7 +60,7 @@ function safeSourceUrl(v) {
 /** Ergänzt Standardwerte und prüft Pflichtangaben. Wirft bei unbrauchbarer Konfiguration. */
 export function normalizeConfig(input, baseDir = process.cwd()) {
   const cfg = { ...DEFAULTS, ...input };
-  for (const k of ['rate_limits', 'operator', 'privacy', 'admin', 'mail']) {
+  for (const k of ['rate_limits', 'operator', 'privacy', 'admin', 'mail', 'album']) {
     cfg[k] = { ...DEFAULTS[k], ...(isObj(input[k]) ? input[k] : {}) };
   }
   // Im Container gibt die Umgebung den Datenbankpfad fest vor.
@@ -75,6 +79,11 @@ export function normalizeConfig(input, baseDir = process.cwd()) {
   cfg.server_key_raw = key;
 
   cfg.source_url = safeSourceUrl(cfg.source_url);
+  cfg.album = {
+    enabled: cfg.album.enabled !== false,
+    round_mb: clamp(cfg.album.round_mb, 1, 500),
+    person_photos: clamp(cfg.album.person_photos, 1, 50),
+  };
   cfg.max_participants = clamp(cfg.max_participants, 3, 50);
   cfg.admin.session_minutes = clamp(cfg.admin.session_minutes, 5, 120);
   return cfg;

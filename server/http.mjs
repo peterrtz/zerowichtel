@@ -7,6 +7,8 @@ import zlib from 'node:zlib';
 import { HttpError, parseBody } from './validate.mjs';
 
 export const MAX_BODY = 65536;
+// Adventsalbum (2.13): ein Foto bis 600 KB plus Vorschau, Base64 → eigene, größere Grenze nur für diesen Weg
+export const MAX_PHOTO_BODY = 1_100_000;
 
 // Für alle Antworten
 const COMMON = {
@@ -19,7 +21,7 @@ const COMMON = {
   'X-Robots-Tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai',
   'tdm-reservation': '1',
 };
-const STATIC_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; "
+const STATIC_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; "
   + "worker-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const API_HEADERS = { 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'" };
 
@@ -59,15 +61,15 @@ function send(res, status, headers, body = null) {
  * Liest den Körper bis MAX_BODY; größer → 413. Der Rest wird nur noch verworfen (nicht gespeichert),
  * damit der Client die Antwort sauber erhält; requestTimeout begrenzt die Dauer.
  */
-function readBody(req) {
+function readBody(req, max = MAX_BODY) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     req.on('data', (c) => {
       size += c.length;
-      if (size <= MAX_BODY) chunks.push(c);
+      if (size <= max) chunks.push(c);
     });
-    req.on('end', () => (size > MAX_BODY ? reject(new HttpError(413, 'too_large', 'Anfrage zu groß.')) : resolve(Buffer.concat(chunks))));
+    req.on('end', () => (size > max ? reject(new HttpError(413, 'too_large', 'Anfrage zu groß.')) : resolve(Buffer.concat(chunks))));
     req.on('error', reject);
   });
 }
@@ -85,7 +87,7 @@ export function createServer({ getApp, files, setTestNow = null }) {
       data ? Buffer.from(JSON.stringify(data)) : null);
     let body = {};
     try {
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) body = parseBody(await readBody(req));
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) body = parseBody(await readBody(req, req.method === 'POST' && path === '/me/photos' ? MAX_PHOTO_BODY : MAX_BODY));
     } catch (e) {
       if (e instanceof HttpError) return reply(e.status, { error: e.code, message: e.message });
       throw e;

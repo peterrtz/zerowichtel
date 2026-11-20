@@ -10,7 +10,7 @@ Der Server ist ein einzelner Node.js-Prozess (≥ 24.7) ohne npm-Pakete. Er lief
 | `server/http.mjs` | HTTP-Server: HTTPS-Weiterleitung, Sicherheitsheader, Anfragekörper (max. 64 KiB), statische Dateien aus dem Speicher (gzip), Weitergabe an die API |
 | `server/app.mjs` | Alle API-Endpunkte; Prüfung von Rechten, Status und Fristen |
 | `server/validate.mjs` | `HttpError`, Eingabeprüfung (`V.id`, `V.ct`, …), JSON-Lesen mit denselben Regeln wie PHP `json_decode` (nur Ganzzahlen, max. 15 Ebenen, gültiges UTF-8) |
-| `server/db.mjs` | SQLite über `node:sqlite`: Pragmas (WAL, `secure_delete`, `foreign_keys`), Schema-Migrationen v1–v12, nur additiv (v5: Gruppenlink, Sprache der Runde, Rätselhinweise; v6: `rounds.without_code`; v7: `rounds.teams_ct`, `participants.team_ct`, `mailboxes.wish_rev`; v8: `participants.done_ct`; v9: `rounds.q_mode`, `q_pub`, `q_anon_hash`, Tabelle `questions`; v10: `rounds.org_email_ct`, `org_email_view_ct`, `q_notified_rowid`, `q_notified_day`; v11: `participants.wish_frozen_at`, `wish_unlock_req`, `mailboxes.wish_frozen_at`; v12: `participants.mix_ct`), Transaktionen mit `BEGIN IMMEDIATE` |
+| `server/db.mjs` | SQLite über `node:sqlite`: Pragmas (WAL, `secure_delete`, `foreign_keys`), Schema-Migrationen v1–v13, nur additiv (v5: Gruppenlink, Sprache der Runde, Rätselhinweise; v6: `rounds.without_code`; v7: `rounds.teams_ct`, `participants.team_ct`, `mailboxes.wish_rev`; v8: `participants.done_ct`; v9: `rounds.q_mode`, `q_pub`, `q_anon_hash`, Tabelle `questions`; v10: `rounds.org_email_ct`, `org_email_view_ct`, `q_notified_rowid`, `q_notified_day`; v11: `participants.wish_frozen_at`, `wish_unlock_req`, `mailboxes.wish_frozen_at`; v12: `participants.mix_ct`; v13: `rounds.album_mode`, `album_pdf`, Tabelle `photos`), Transaktionen mit `BEGIN IMMEDIATE` |
 | `server/crypto.mjs` | SHA-256, Zufall, Vergleich in konstanter Zeit, `ServerCrypto` (XChaCha20-Poly1305 = HChaCha20 + ChaCha20-Poly1305, byte-kompatibel mit libsodium), Argon2id im PHC-Format |
 | `server/admin.mjs` | Admin-Bereich: Anmeldung (Passwort + TOTP oder Notfallcode), Sperre, Sitzungen, Codes, Protokoll; TOTP nach RFC 6238 |
 | `server/codes.mjs` | Organisator-Codes (`ZW-XXXX-…`, nur Hash gespeichert) |
@@ -78,8 +78,14 @@ IDs und Tokens: 22 Zeichen Base64url (128 Bit). Gespeichert wird nur SHA-256 (he
 | `POST /admin/{slug}/login` · `logout` | – / x | Admin-Bereich |
 | `GET /admin/{slug}/overview` · `POST /admin/{slug}/codes` · `DELETE /admin/{slug}/codes/{ref}` | x | Überblick, Code erzeugen, widerrufen |
 | `PUT /admin/{slug}/open` | x | Anlegen ohne Code: `{enabled, maxRounds, email}` |
+| `PUT /rounds/{id}/album` | a | Adventsalbum: `{enabled, pdf}` (Wahrheitswerte); Einschalten nur, wenn `album.enabled` in der Konfiguration |
+| `GET /rounds/{id}/photos` | a | alle Fotos der Runde mit `pid` (für die Namen), Vorschau-Chiffretext, Metadaten-Chiffretext, Größe, Zeitpunkt; dazu Verbrauch und Grenzen |
+| `GET` / `DELETE /rounds/{id}/photos/{fid}` | a | großes Foto (Chiffretext) bzw. löschen |
+| `GET /me/photos` | p | wie oben, aber ohne `pid`, stattdessen `own`; nur bei Album an und Zusage „dabei“ |
+| `POST /me/photos` | p | `{id, photoCt, thumbCt, metaCt}` – Foto höchstens 600 KB, Vorschau 48 KB (nach dem Dekodieren), als Bytes gespeichert; eigene Anfragegrenze 1,1 MB nur für diesen Weg (`MAX_PHOTO_BODY`); Grenzen je Person und Runde aus `album`; Ratenbegrenzung `photo` |
+| `GET` / `DELETE /me/photos/{fid}` | p | großes Foto bzw. eigenes löschen (Löschen auch nach Absage oder bei ausgeschaltetem Album) |
 | `GET /ideas` | – | Geschenkvorschläge des Ideen-Würfels: `{mode, items}`; bei `builtin` leere Liste (die App hat die Standardliste selbst) |
-| `PUT /admin/{slug}/ideas` | x | Geschenkvorschläge: `{mode: builtin\|extend\|replace, items: [{max: 5\|10\|20\|30\|50\|null, de, en}]}`, höchstens 200 × 120 Zeichen (`server/ideas.mjs`), gespeichert in `meta` (`ideas`) |
+| `PUT /admin/{slug}/ideas` | x | Geschenkvorschläge: `{mode: builtin\|extend\|replace, items: [{max: 5\|10\|20\|30\|50\|null, de, en, minAge, maxAge}]}` (Alter ab 2.13: 0–99, `maxAge` null oder ≥ `minAge`), höchstens 200 × 120 Zeichen (`server/ideas.mjs`), gespeichert in `meta` (`ideas`) |
 | `PUT /admin/{slug}/donation` | x | Unterstützungslink: `{enabled, url, label, note, inRounds}` (nur https, Längen und Steuerzeichen geprüft, `server/donation.mjs`). Gespeichert in `meta` (`donation`); `/overview` liefert die Einstellung, `GET /info` nur `{url, label, note, inRounds}` und nur eingeschaltet, sonst `null` |
 | `PATCH /rounds/{id}` mit `teamsCt` | a | Team-Wichteln an (Teamliste, K_round) oder aus (`null`, löscht alle Teamwahlen); nur Status offen, nur Wichteln |
 | `PUT /rounds/{id}/participants/{pid}/team` | a | Team einer Person setzen (`teamCt`, K_round, AAD an die Person gebunden; `null` = ohne Team); nur offen |

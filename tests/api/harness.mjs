@@ -74,6 +74,7 @@ export async function startServer(o = {}) {
     admin: { enabled: o.admin ?? false },
     ...(o.rateLimits ? { rate_limits: o.rateLimits } : {}),
     ...(o.sourceUrl !== undefined ? { source_url: o.sourceUrl } : {}),
+    ...(o.album ? { album: o.album } : {}),
     ...(o.mail === false ? {} : { mail: { transport: 'log', from_email: 'noreply@zw.example', log_path: mailLog } }),
   };
   // Zufälliger Port unterhalb des Linux-Bereichs für ausgehende Verbindungen (ab 32768); ist er doch belegt

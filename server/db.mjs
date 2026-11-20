@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -252,5 +252,23 @@ const STEPS = [
   // die Einträge der anderen ohne Zuordnung (sortiert nach Chiffretext). Nur hinzufügen.
   [
     'ALTER TABLE participants ADD COLUMN mix_ct TEXT',
+  ],
+  // v13 (2.13): Adventsalbum. album_mode 0 = aus, 1 = an; album_pdf = Erinnerungsalbum als PDF ab der Bescherung.
+  // photos: Foto und Vorschau verschlüsselt mit K_round (AAD an Runde und Foto-ID gebunden), als Bytes gespeichert;
+  // meta_ct = Bildunterschrift und Name. Der Server kennt nur Größe, Zeitpunkt und hochladende Person. Nur hinzufügen.
+  [
+    'ALTER TABLE rounds ADD COLUMN album_mode INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE rounds ADD COLUMN album_pdf INTEGER NOT NULL DEFAULT 0',
+    `CREATE TABLE photos (
+        id          TEXT PRIMARY KEY,
+        round_id    TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+        pid         TEXT REFERENCES participants(id) ON DELETE CASCADE,
+        created_at  INTEGER NOT NULL,
+        bytes       INTEGER NOT NULL,
+        thumb       BLOB NOT NULL,
+        photo       BLOB NOT NULL,
+        meta_ct     TEXT NOT NULL
+    )`,
+    'CREATE INDEX photos_round ON photos(round_id, created_at)',
   ],
 ];

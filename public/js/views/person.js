@@ -10,6 +10,7 @@ import { schrottCard } from './game.js';
 import { countdownCard } from './extras.js';
 import { personQuestionsCard, helpButton } from './questions.js';
 import { mixtapeCard } from './mixtape.js';
+import { personAlbumCard } from './album.js';
 import { donationCard } from '../lib/donation.js';
 import { forgetAnonQuestions } from '../lib/questions.js';
 import { recoveryPng, saveImage } from '../lib/recovery-image.js';
@@ -255,6 +256,7 @@ export async function renderPerson(root, pctx) {
     round.status === 'offen' ? rsvpCard : null,
     drawPart,
     personQuestionsCard({ pctx, round }),
+    personAlbumCard({ pctx, data, name }),
     mixtapeCard({ pctx, data, name, reload }),
     meta.greeting ? card(null, md(meta.greeting)) : null,
     round.mode === 'schrott' && me.rsvp !== 'raus' ? schrottCard({ meta, round, packages: counts.dabei, storageKey: round.id }) : null,

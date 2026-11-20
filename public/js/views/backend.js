@@ -308,16 +308,23 @@ async function renderPanel(root) {
           const en = h('input', { type: 'text', maxlength: 120, lang: 'en', 'aria-label': `${CLASS_LABEL(max)}, Vorschlag ${rows.findIndex(([, j]) => j === i) + 1}, englisch (optional)`, placeholder: 'English (optional)' });
           de.value = it.de;
           en.value = it.en;
+          const n = rows.findIndex(([, j]) => j === i) + 1;
+          const minA = h('input', { type: 'number', min: 0, max: 99, step: 1, inputmode: 'numeric', class: 'ideas-age', 'aria-label': `${CLASS_LABEL(max)}, Vorschlag ${n}, Mindestalter`, placeholder: 'ab' });
+          const maxA = h('input', { type: 'number', min: 0, max: 99, step: 1, inputmode: 'numeric', class: 'ideas-age', 'aria-label': `${CLASS_LABEL(max)}, Vorschlag ${n}, Höchstalter (optional)`, placeholder: 'bis' });
+          minA.value = it.minAge ? String(it.minAge) : '';
+          maxA.value = it.maxAge !== null && it.maxAge !== undefined ? String(it.maxAge) : '';
           de.addEventListener('input', () => { it.de = de.value; });
           en.addEventListener('input', () => { it.en = en.value; });
-          return h('li', { class: 'ideas-row' }, de, en,
+          minA.addEventListener('input', () => { it.minAge = minA.value === '' ? 0 : Number(minA.value); });
+          maxA.addEventListener('input', () => { it.maxAge = maxA.value === '' ? null : Number(maxA.value); });
+          return h('li', { class: 'ideas-row' }, de, en, h('span', { class: 'ideas-ages' }, minA, '–', maxA),
             h('button', { type: 'button', class: 'btn btn-ghost btn-small', 'aria-label': `Vorschlag „${it.de || 'leer'}“ entfernen`, on: { click: () => { items.splice(i, 1); draw(); } } }, 'Entfernen'));
         }));
         add(groups, h('fieldset', { class: 'ideas-class' },
           h('legend', null, CLASS_LABEL(max), ' ', h('span', { class: 'muted' }, `(${rows.length})`)),
           rows.length ? list : h('p', { class: 'hint' }, 'Noch keine eigenen Vorschläge.'),
           h('button', { type: 'button', class: 'btn btn-small', disabled: items.length >= MAX_ITEMS, on: { click: () => {
-            items.push({ max, de: '', en: '' });
+            items.push({ max, de: '', en: '', minAge: 0, maxAge: null });
             draw();
             groups.querySelectorAll(`fieldset`)[IDEA_CLASSES.indexOf(max)].querySelector('li:last-child input')?.focus();
           } } }, `+ Vorschlag ${CLASS_LABEL(max)}`)));
@@ -327,7 +334,7 @@ async function renderPanel(root) {
     draw();
     const template = h('button', { type: 'button', class: 'btn btn-small', on: { click: () => {
       if (items.length && !confirm('Die Standardliste zusätzlich in den Editor übernehmen? Deine Einträge bleiben erhalten.')) return;
-      const base = IDEAS.flatMap(([max, list]) => list.map(([de, en]) => ({ max: max === Infinity ? null : max, de, en })));
+      const base = IDEAS.flatMap(([max, list]) => list.map(([de, en, minAge, maxAge]) => ({ max: max === Infinity ? null : max, de, en, minAge: minAge ?? 0, maxAge: maxAge ?? null })));
       items = [...items, ...base].slice(0, MAX_ITEMS);
       ideasCard.querySelector('input[value="replace"]').checked = true;
       draw();
@@ -335,7 +342,7 @@ async function renderPanel(root) {
     } } }, 'Standardliste als Vorlage übernehmen');
     const save = actionButton('Speichern', async () => {
       const mode = ideasCard.querySelector('input[name="ideas-mode"]:checked')?.value ?? 'builtin';
-      const clean = items.map((it) => ({ max: it.max, de: it.de.trim(), en: it.en.trim() })).filter((it) => it.de || it.en);
+      const clean = items.map((it) => ({ max: it.max, de: it.de.trim(), en: it.en.trim(), minAge: Number.isInteger(it.minAge) ? it.minAge : 0, maxAge: Number.isInteger(it.maxAge) ? it.maxAge : null })).filter((it) => it.de || it.en);
       const res = await call(root, 'PUT', '/ideas', { mode, items: clean });
       toast(`Gespeichert: ${res.ideas.mode === 'builtin' ? 'Standardliste' : `${res.ideas.items.length} eigene Vorschläge`}.`, 'ok');
       renderIdeas(res.ideas, true);
@@ -345,6 +352,7 @@ async function renderPanel(root) {
       h('summary', null, 'Geschenkvorschläge (Ideen-Würfel)'),
       h('p', null, 'Aktiv: ', h('strong', null, summaryText), '.'),
       h('p', null, 'Der Ideen-Würfel schlägt Teilnehmenden Geschenke passend zum Betragslimit vor. Hier ergänzt oder ersetzt du die Liste. Englisch ist optional; ohne Übersetzung erscheint der deutsche Text.'),
+      h('p', { class: 'hint' }, 'Alter: „ab“ ist das Mindestalter (leer = jedes Alter), „bis“ eine Empfehlung nach oben (leer = ohne). Wer würfelt, kann das ungefähre Alter seines Wichtels wählen: Kind (6–12), Jugendlich (13–17), Erwachsen (18+). Das Mindestalter gilt streng ab der Untergrenze der Gruppe – Alkohol und Ähnliches also mit „ab 18“ eintragen.'),
       h('div', { class: 'mode-pick', role: 'radiogroup', 'aria-label': 'Welche Liste?' }, radios),
       h('p', { class: 'form-actions' }, template),
       groups,

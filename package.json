@@ -1,6 +1,6 @@
 {
   "name": "zerowichtel",
-  "version": "2.12.0",
+  "version": "2.13.0",
   "private": true,
   "type": "module",
   "license": "EUPL-1.2",
@@ -14,7 +14,7 @@
     "test:api": "node tests/api/run.mjs && node tests/api/fuzz.mjs 3000",
     "test:e2e": "node tests/e2e/flow.mjs && node tests/e2e/draw-flow.mjs",
     "test:ui": "node tests/ui/smoke.mjs && node tests/ui/hostile.mjs",
-    "test:browser": "node tests/browser/walkthrough.mjs && node tests/browser/walkthrough-m2.mjs && node tests/browser/walkthrough-m3.mjs && node tests/browser/walkthrough-m4.mjs && node tests/browser/walkthrough-admin.mjs && node tests/browser/walkthrough-remind.mjs && node tests/browser/walkthrough-23.mjs && node tests/browser/walkthrough-24.mjs && node tests/browser/walkthrough-25.mjs && node tests/browser/walkthrough-26.mjs && node tests/browser/walkthrough-27.mjs && node tests/browser/walkthrough-28.mjs && node tests/browser/walkthrough-29.mjs && node tests/browser/walkthrough-30.mjs && node tests/browser/a11y.mjs",
+    "test:browser": "node tests/browser/walkthrough.mjs && node tests/browser/walkthrough-m2.mjs && node tests/browser/walkthrough-m3.mjs && node tests/browser/walkthrough-m4.mjs && node tests/browser/walkthrough-admin.mjs && node tests/browser/walkthrough-remind.mjs && node tests/browser/walkthrough-23.mjs && node tests/browser/walkthrough-24.mjs && node tests/browser/walkthrough-25.mjs && node tests/browser/walkthrough-26.mjs && node tests/browser/walkthrough-27.mjs && node tests/browser/walkthrough-28.mjs && node tests/browser/walkthrough-29.mjs && node tests/browser/walkthrough-30.mjs && node tests/browser/walkthrough-31.mjs && node tests/browser/a11y.mjs",
     "test:all": "npm run lint && npm test && npm run test:api && npm run test:e2e && npm run test:ui",
     "lint": "eslint .",
     "release": "node bin/release.mjs",

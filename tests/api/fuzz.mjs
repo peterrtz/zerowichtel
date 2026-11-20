@@ -37,6 +37,9 @@ const endpoints = [
   ['PUT', `/rounds/${rid}/join`], ['DELETE', `/rounds/${rid}/join`], ['GET', '/join'], ['POST', '/join'],
   ['POST', '/mailbox/hints'], ['DELETE', `/mailbox/hints/${nid()}`], ['PUT', `/admin/${'a'.repeat(26)}/open`], ['PUT', `/admin/${'a'.repeat(26)}/donation`], ['PUT', `/admin/${'a'.repeat(26)}/ideas`],
   ['PUT', '/me/team'], ['PUT', `/rounds/${rid}/participants/${pid}/team`],
+  // 2.13: Adventsalbum
+  ['PUT', `/rounds/${rid}/album`], ['GET', `/rounds/${rid}/photos`], ['GET', `/rounds/${rid}/photos/${nid()}`], ['DELETE', `/rounds/${rid}/photos/${nid()}`],
+  ['GET', '/me/photos'], ['POST', '/me/photos'], ['GET', `/me/photos/${nid()}`], ['DELETE', `/me/photos/${nid()}`],
 ];
 const fields = ['id', 'adminHash', 'mode', 'rsvpDeadline', 'wishDeadline', 'eventDate', 'metaCt', 'adminCt', 'organizerCode', 'inviteHash', 'inviteCt',
   'nameCt', 'accessHash', 'pubkey', 'recoveryHash', 'recoveryCt', 'rsvp', 'wishCt', 'bodyCt', 'recoveryToken', 'participants', 'mailboxes',

@@ -1,5 +1,16 @@
 # Änderungen
 
+## 2.13.0 – 2026-11-20
+
+Datenbankschema 13 (nur ergänzend: `rounds.album_mode`, `rounds.album_pdf`, Tabelle `photos`).
+
+- **Adventsalbum:** Die Organisator:in schaltet es pro Runde ein (Standard: aus). Wer zugesagt hat, teilt Fotos aus der Vorweihnachtszeit mit Bildunterschrift; die Timeline zeigt sie nach Tagen, Adventssonntage und Bescherung markiert, Antippen öffnet die Großansicht.
+- **Aufbereitung im Browser:** Jedes Foto wird neu gezeichnet – lange Kante höchstens 1600 px, WebP (JPEG, wo der Browser kein WebP schreiben kann), dazu eine Vorschau. Dabei fallen alle Metadaten weg, auch der GPS-Standort. JPEG, PNG und WebP gehen überall, HEIC dort, wo der Browser es lesen kann (Safari am iPhone); sonst kommt eine verständliche Meldung.
+- **Verschlüsselung und Schutz:** Foto, Vorschau und Bildunterschrift sind mit dem Rundenschlüssel verschlüsselt. Der Server kann den Inhalt nicht prüfen; deshalb prüft jedes Gerät nach dem Entschlüsseln die Dateikennung und zeigt nur WebP und JPEG an. Grenzen: 12 Fotos je Person, 60 MB je Runde, 600 KB je Foto (einstellbar unter `album` in `config.json`, dort auch serverweit abschaltbar). Eigene Fotos löscht man selbst, die Organisator:in jedes. Gelöscht mit der Runde.
+- **PDF-Erinnerungsalbum** (von der Organisator:in zuschaltbar, ab der Bescherung): 5 Layouts (ein Foto pro Seite, zwei pro Seite, Raster, Polaroid, Tagebuch), 5 Designs (Winterweiß, Tannengrün, Mitternacht, Lebkuchen, Schlicht), Hoch- oder Querformat, Titelblatt mit Titel, Untertitel, Text und Titelfoto. Die PDF entsteht nur im Browser (eigener kleiner PDF-Erzeuger ohne Abhängigkeit); Bildunterschriften mit Emoji werden als Bild gesetzt. Hochladen geht nach der Bescherung weiter.
+- **Altersangaben im Ideen-Würfel:** Jeder Vorschlag hat ein Mindestalter und optional ein Höchstalter. Wer würfelt, wählt das ungefähre Alter des Wichtels (egal, Kind 6–12, jugendlich 13–17, erwachsen 18+); das Mindestalter gilt streng, das Ergebnis zeigt „ab … Jahren“ bzw. „ca. … Jahre“. Die Standardliste hat neue Vorschläge für Kinder und enthält keinen Alkohol (per Test abgesichert). Im Admin-Bereich und beim Import (`minAge`, `maxAge`) pflegbar.
+- Content-Security-Policy: `img-src` erlaubt zusätzlich `blob:` (entschlüsselte Fotos der eigenen Seite).
+
 ## 2.12.0 – 2026-11-20
 
 Kein neues Datenbankschema (Einstellung in der Tabelle `meta`).

@@ -4,7 +4,7 @@
 import { h, add, clear } from '../lib/dom.js';
 import { t, tn } from '../lib/i18n.js';
 import { calendarDaysUntil, formatDate, euro } from '../lib/dates.js';
-import { rollIdea, adventTip, loadIdeas } from '../lib/ideas.js';
+import { rollIdeaItem, adventTip, loadIdeas, AGE_GROUPS } from '../lib/ideas.js';
 import { reducedMotion, snowWanted, setSnowWanted, startSnow, stopSnow, snowRunning } from '../lib/snow.js';
 
 // ---------- Countdown
@@ -113,19 +113,35 @@ export function revealBox(key, content) {
 
 // ---------- Ideen-Würfel
 
+let diceId = 0;
+
+/** Altersangabe zu einem Vorschlag, z. B. „ab 18“ oder „ca. 5–14 Jahre“. */
+export function ageHint(minAge, maxAge) {
+  if (maxAge !== null && maxAge !== undefined) return t('ca. {min}–{max} Jahre', { min: minAge, max: maxAge });
+  return minAge > 0 ? t('ab {n} Jahren', { n: minAge }) : '';
+}
+
 export function ideaDice(budget) {
   let last = null;
+  const id = `idea-age-${++diceId}`;
   const out = h('p', { class: 'idea-out', 'aria-live': 'polite' });
+  const age = h('p', { class: 'hint idea-age' });
+  const select = h('select', { id }, AGE_GROUPS.map(([v, label]) => h('option', { value: v }, t(label))));
   const btn = h('button', { type: 'button', class: 'btn btn-small' }, t('Idee würfeln'));
   // Liste des Betreibers schon beim Anzeigen holen, damit der erste Wurf nicht warten muss
   loadIdeas();
   btn.addEventListener('click', async () => {
     await loadIdeas();
-    last = rollIdea(budget, last);
-    out.textContent = last ?? t('Für dieses Betragslimit gibt es in der Liste keinen Vorschlag.');
+    const group = AGE_GROUPS.find(([v]) => v === select.value)?.[2] ?? null;
+    const item = rollIdeaItem(budget, last, undefined, undefined, group);
+    last = item?.text ?? null;
+    out.textContent = item?.text ?? (group === null ? t('Für dieses Betragslimit gibt es in der Liste keinen Vorschlag.') : t('Für dieses Betragslimit und Alter gibt es in der Liste keinen Vorschlag.'));
+    age.textContent = item ? ageHint(item.minAge, item.maxAge) : '';
     btn.textContent = t('Noch eine Idee');
   });
+  select.addEventListener('change', () => { last = null; });
   return h('div', { class: 'idea-dice' },
     h('p', { class: 'hint' }, t('Keine Idee? Der Würfel schlägt etwas vor, das zum Betragslimit ({budget}) passt – aus einer festen Liste, ohne Shop und ohne Tracking.', { budget: euro(budget) })),
-    btn, out);
+    h('div', { class: 'field idea-age-pick' }, h('label', { for: id }, t('Ungefähres Alter deines Wichtels')), select),
+    btn, out, age);
 }

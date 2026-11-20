@@ -2,7 +2,8 @@
 //
 // Ohne Einstellung gilt die Standardliste aus public/js/lib/ideas.js. Der Betreiber kann sie um eigene Vorschläge
 // ergänzen („extend“) oder ganz ersetzen („replace“). Jeder Vorschlag hat eine Preisklasse (Obergrenze in Euro,
-// null = darüber), einen deutschen und optional einen englischen Text. Gespeichert in der Tabelle meta.
+// null = darüber), einen deutschen und optional einen englischen Text sowie ein Mindestalter (0 = jedes) und ein
+// optionales Höchstalter (2.13). Gespeichert in der Tabelle meta.
 import { getMeta, setMeta } from './cleanup.mjs';
 
 export const IDEA_CLASSES = [5, 10, 20, 30, 50, null];
@@ -36,7 +37,11 @@ export function normalizeIdeas(input) {
     if (!it || typeof it !== 'object' || Array.isArray(it)) throw new IdeasError(`Vorschlag ${i + 1}: ungültiger Eintrag.`);
     const max = it.max === undefined ? null : it.max;
     if (!IDEA_CLASSES.includes(max)) throw new IdeasError(`Vorschlag ${i + 1}: Preisklasse muss ${IDEA_CLASSES.map((c) => c ?? 'null').join(', ')} sein.`);
-    return { max, de: text(it.de, 'Der deutsche Text', i, true), en: text(it.en, 'Der englische Text', i, false) };
+    const minAge = it.minAge === undefined || it.minAge === null ? 0 : it.minAge;
+    const maxAge = it.maxAge === undefined ? null : it.maxAge;
+    if (!Number.isInteger(minAge) || minAge < 0 || minAge > 99) throw new IdeasError(`Vorschlag ${i + 1}: Mindestalter muss eine ganze Zahl von 0 bis 99 sein.`);
+    if (maxAge !== null && (!Number.isInteger(maxAge) || maxAge < minAge || maxAge > 99)) throw new IdeasError(`Vorschlag ${i + 1}: Höchstalter muss leer sein oder zwischen Mindestalter und 99 liegen.`);
+    return { max, de: text(it.de, 'Der deutsche Text', i, true), en: text(it.en, 'Der englische Text', i, false), minAge, maxAge };
   });
   if (mode === 'replace' && !items.length) throw new IdeasError('Eine eigene Liste ohne Vorschläge geht nicht – dann lieber die Standardliste verwenden.');
   return { mode, items };

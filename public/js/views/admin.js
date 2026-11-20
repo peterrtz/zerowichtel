@@ -1,4 +1,5 @@
 import { donationCard } from '../lib/donation.js';
+import { adminAlbumCard } from './album.js';
 import { h, add, field, toast, errorBox, actionButton } from '../lib/dom.js';
 import * as M from '../lib/model.js';
 import { saveLink, removeLink, findLink, updateLink, listLinks } from '../lib/store.js';
@@ -378,6 +379,7 @@ export async function renderAdmin(root, ctx) {
     open ? groupLinkCard({ ctx, data, meta, reload }) : null,
     await adminDrawSection({ ctx, data, reload }),
     adminQuestionsCard({ ctx, data, reload }),
+    adminAlbumCard({ ctx, data, reload }),
     editCard,
     donationCard(card, { inRound: true }),
     dangerCard,

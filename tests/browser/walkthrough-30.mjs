@@ -283,6 +283,8 @@ try {
       for (const budget of [5, 3]) {
         const el = ideaDice(budget);
         document.querySelector('main').append(el);
+        out.push(el.querySelectorAll('select option').length);
+        el.querySelector('select').value = 'kind';
         el.querySelector('button').click();
         await new Promise((r) => setTimeout(r, 400));
         out.push(el.querySelector('.idea-out').textContent);
@@ -290,8 +292,9 @@ try {
       }
       return out;
     });
-    if (rolled[0] !== 'Selbstgebackene Plätzchen in einer Dose') problems.push(`Würfel bei 5 €: ${rolled[0]}`);
-    if (rolled[1] !== 'Selbstgebackene Plätzchen in einer Dose') problems.push(`Würfel bei 3 €: ${rolled[1]} (Klasse bis 5 € passt immer)`);
+    if (rolled[0] !== 4 || rolled[2] !== 4) problems.push(`Altersauswahl: ${rolled[0]} Optionen`);
+    if (rolled[1] !== 'Selbstgebackene Plätzchen in einer Dose') problems.push(`Würfel bei 5 €: ${rolled[1]}`);
+    if (rolled[3] !== 'Selbstgebackene Plätzchen in einer Dose') problems.push(`Würfel bei 3 €: ${rolled[3]} (Klasse bis 5 € passt immer)`);
   });
 
   await step('Ausschalten: Link verschwindet überall', async () => {

@@ -149,7 +149,7 @@ export async function loadAdmin(ctx) {
   const join = r.join ? { ...r.join, token: (await C.decryptJson(ctx.kAdmin, r.join.ct, AAD.join(r.id))).t } : null;
   // Analoge Mitwichtelnde: nur Einträge zu Personen, die es (noch) gibt
   admin.analog = normalizeAnalog(admin.analog, participants.map((p) => p.id));
-  return { round: r, meta, admin, participants, join, teams, maxParticipants: data.maxParticipants, emailAvailable: !!data.emailAvailable };
+  return { round: r, meta, admin, participants, join, teams, maxParticipants: data.maxParticipants, emailAvailable: !!data.emailAvailable, albumAvailable: data.albumAvailable !== false };
 }
 
 async function inviteFields(ctx, pid) {

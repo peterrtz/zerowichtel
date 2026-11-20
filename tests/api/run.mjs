@@ -13,7 +13,7 @@ const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 /** Funktionen ab 2.3 – nicht in der PHP-Fassung 1.2.1 vorhanden. */
 const test23 = (name, fn) => { if (IMPL !== 'php') tests.push([`2.3: ${name}`, fn]); };
-const SCHEMA = IMPL === 'php' ? 4 : 12;
+const SCHEMA = IMPL === 'php' ? 4 : 13;
 function eq(exp, act, msg = '') {
   if (!isDeepStrictEqual(exp, act)) throw new Error(`${msg ? `${msg}: ` : ''}erwartet ${inspect(exp)}, erhalten ${inspect(act)}`);
 }
@@ -833,7 +833,12 @@ test23('Geschenkvorschläge (2.12) – Admin pflegt, /ideas liefert, Prüfung, E
   ok(/nur 1 eigene/.test(c.out), c.out);
   eq('Tee', (await e.call('GET', '/ideas'))[1].items[0].de);
   c = e.s.cli('ideas', 'export');
-  eq({ mode: 'replace', items: [{ max: 10, de: 'Tee', en: 'Tea' }] }, JSON.parse(c.out), 'Export = Import');
+  eq({ mode: 'replace', items: [{ max: 10, de: 'Tee', en: 'Tea', minAge: 0, maxAge: null }] }, JSON.parse(c.out), 'Export = Import (Alter ergänzt)');
+  c = e.s.cli('ideas', 'import', { input: JSON.stringify({ mode: 'extend', items: [{ max: 20, de: 'Gin-Set', minAge: 18 }, { max: 5, de: 'Knete', minAge: 3, maxAge: 10 }] }) });
+  eq(0, c.status, c.out);
+  eq([18, null, 3, 10], (await e.call('GET', '/ideas'))[1].items.flatMap((x) => [x.minAge, x.maxAge]), 'Alter öffentlich');
+  ok(e.s.cli('ideas', 'import', { input: JSON.stringify({ mode: 'extend', items: [{ max: 5, de: 'x', minAge: 12, maxAge: 6 }] }) }).status !== 0, 'Höchstalter unter Mindestalter');
+  e.s.cli('ideas', 'import', { input: file });
   c = e.s.cli('ideas', 'import', { input: '{kaputt' });
   ok(c.status !== 0 && /kein gültiges JSON/.test(c.out), c.out);
   c = e.s.cli('ideas', 'import', { input: JSON.stringify({ mode: 'replace', items: [{ max: 3, de: 'x' }] }) });
@@ -1671,6 +1676,109 @@ test('2.10.1: Wünsche festlegen gibt es beim Team-Wichteln nicht', async () => 
   const e = await Env.make();
   const [, people] = await teamRound(e, 3);
   eq(409, await e.status('PUT', '/me/wishes', { wishCt: ct(), freeze: true }, people[0].auth));
+});
+
+test('2.13: Adventsalbum – Schalter, Sichtbarkeit, Grenzen, Rechte, Löschen', async () => {
+  const e = await Env.make({ album: { enabled: true, round_mb: 2, person_photos: 3 } });
+  const r = await e.round();
+  const people = [];
+  for (let i = 0; i < 3; i++) {
+    const p = await e.person(r);
+    p.auth = await e.claim(p);
+    people.push(p);
+  }
+  const [a, b, c] = people;
+  for (const p of [a, b]) eq(200, await e.status('PUT', '/me/rsvp', { rsvp: 'dabei' }, p.auth));
+  const photo = (n = 1000, t = 200) => ({ id: nid(), photoCt: ct(n), thumbCt: ct(t), metaCt: ct(80) });
+  const up = (p, body) => e.call('POST', '/me/photos', body, p.auth);
+  // Aus: nichts geht
+  eq(409, await e.status('GET', '/me/photos', null, a.auth), 'Album aus');
+  eq(409, (await up(a, photo()))[0], 'Upload bei Album aus');
+  let [, view] = await e.call('GET', `/rounds/${r.id}/admin`, null, r.admin);
+  eq([false, false, true], [view.round.album.enabled, view.round.album.pdf, view.albumAvailable]);
+  // Schalter nur für die Organisator:in, mit Wahrheitswerten
+  eq(401, await e.status('PUT', `/rounds/${r.id}/album`, { enabled: true, pdf: true }, a.auth));
+  eq(400, await e.status('PUT', `/rounds/${r.id}/album`, { enabled: 'ja', pdf: true }, r.admin));
+  eq(400, await e.status('PUT', `/rounds/${r.id}/album`, { enabled: true }, r.admin));
+  eq(204, await e.status('PUT', `/rounds/${r.id}/album`, { enabled: true, pdf: true }, r.admin));
+  eq({ enabled: true, pdf: true }, (await e.call('GET', '/me', null, a.auth))[1].round.album, '/me kennt den Schalter');
+  // Nur wer zugesagt hat
+  eq(409, await e.status('GET', '/me/photos', null, c.auth), 'offen');
+  eq(409, (await up(c, photo()))[0], 'offen: kein Upload');
+  let [s, d] = await e.call('GET', '/me/photos', null, a.auth);
+  eq([200, 0, 3, 2 * 1024 * 1024], [s, d.photos.length, d.limits.personPhotos, d.limits.roundBytes]);
+  // Prüfung
+  eq(400, (await up(a, { ...photo(), id: 'kurz' }))[0], 'ID');
+  eq(400, (await up(a, { ...photo(), photoCt: 'v1.!!!' }))[0], 'kein Base64');
+  eq(400, (await up(a, { ...photo(), photoCt: 'v1.AAAA' }))[0], 'zu kurz');
+  eq(400, (await up(a, photo(600 * 1024 + 29)))[0], 'Foto zu groß');
+  eq(400, (await up(a, photo(1000, 48 * 1024 + 29)))[0], 'Vorschau zu groß');
+  eq(400, (await up(a, { ...photo(), metaCt: ct(2000) }))[0], 'Metadaten zu lang');
+  eq(400, (await up(a, { ...photo(), metaCt: 7 }))[0], 'Metadaten kein Text');
+  // Gültig: größtes Foto passt in die Anfragegrenze
+  const big = photo(600 * 1024 + 28, 48 * 1024 + 28);
+  [s, d] = await up(a, big);
+  eq(201, s, `größtes Foto ${JSON.stringify(d)}`);
+  eq(409, (await up(a, { ...photo(), id: big.id }))[0], 'doppelte ID');
+  // Anfragegrenze: nur dieser Weg darf groß sein
+  eq(413, (await up(a, { ...photo(), pad: 'x'.repeat(1_200_000) }))[0], 'über 1,1 MB');
+  eq(413, await e.status('PUT', '/me/wishes', { wishCt: ct(60000) }, a.auth), 'andere Wege bleiben bei 64 KB');
+  // Rundenspeicher (2 MB): drittes großes Foto passt nicht mehr
+  eq(201, (await up(b, photo(600 * 1024 + 28, 48 * 1024 + 28)))[0]);
+  eq(201, (await up(b, photo(600 * 1024 + 28, 48 * 1024 + 28)))[0]);
+  eq(409, (await up(a, photo(600 * 1024 + 28, 48 * 1024 + 28)))[0], 'Album voll');
+  // Personengrenze (3)
+  eq(201, (await up(a, photo()))[0]);
+  eq(201, (await up(a, photo()))[0]);
+  [s, d] = await up(a, photo());
+  eq([409, 'photo_limit'], [s, d.error], 'höchstens 3 je Person');
+  // Liste: eigene markiert, keine Personen-IDs; Bytes unverändert zurück
+  [, d] = await e.call('GET', '/me/photos', null, b.auth);
+  eq(5, d.photos.length);
+  eq(2, d.photos.filter((f) => f.own).length);
+  ok(!JSON.stringify(d).includes(a.pid) && !d.photos.some((f) => 'pid' in f), 'keine Personen-IDs für Teilnehmende');
+  eq(big.thumbCt, d.photos.find((f) => f.id === big.id).thumbCt, 'Vorschau unverändert');
+  eq(big.photoCt, (await e.call('GET', `/me/photos/${big.id}`, null, b.auth))[1].photoCt, 'Foto unverändert');
+  eq(404, await e.status('GET', `/me/photos/${nid()}`, null, b.auth));
+  // Organisator:in sieht Personen-IDs (zum Zuordnen der Namen) und darf alles löschen
+  [, d] = await e.call('GET', `/rounds/${r.id}/photos`, null, r.admin);
+  eq(3, d.photos.filter((f) => f.pid === a.pid).length);
+  eq(401, await e.status('GET', `/rounds/${r.id}/photos`, null, a.auth));
+  // Löschen: fremdes Foto nicht, eigenes schon
+  eq(404, await e.status('DELETE', `/me/photos/${big.id}`, null, b.auth), 'fremdes Foto');
+  eq(204, await e.status('DELETE', `/me/photos/${big.id}`, null, a.auth));
+  const bid = d.photos.find((f) => f.pid === b.pid).id;
+  eq(204, await e.status('DELETE', `/rounds/${r.id}/photos/${bid}`, null, r.admin));
+  eq(404, await e.status('DELETE', `/rounds/${r.id}/photos/${bid}`, null, r.admin), 'schon weg');
+  // Andere Runde: kein Zugriff über fremde IDs
+  const r2 = await e.round();
+  eq(204, await e.status('PUT', `/rounds/${r2.id}/album`, { enabled: true, pdf: false }, r2.admin));
+  const aid = (await e.call('GET', `/rounds/${r.id}/photos`, null, r.admin))[1].photos[0].id;
+  eq(404, await e.status('GET', `/rounds/${r2.id}/photos/${aid}`, null, r2.admin), 'fremde Runde');
+  eq(404, await e.status('DELETE', `/rounds/${r2.id}/photos/${aid}`, null, r2.admin), 'fremde Runde löschen');
+  // Absage: keine Liste mehr, eigene Fotos bleiben löschbar
+  eq(200, await e.status('PUT', '/me/rsvp', { rsvp: 'raus' }, a.auth));
+  eq(409, await e.status('GET', '/me/photos', null, a.auth));
+  const own = (await e.call('GET', `/rounds/${r.id}/photos`, null, r.admin))[1].photos.find((f) => f.pid === a.pid).id;
+  eq(204, await e.status('DELETE', `/me/photos/${own}`, null, a.auth), 'eigenes trotz Absage löschbar');
+  // Ausschalten: Teilnehmende sehen nichts, Fotos bleiben
+  const n0 = e.count('SELECT COUNT(*) FROM photos');
+  eq(204, await e.status('PUT', `/rounds/${r.id}/album`, { enabled: false, pdf: false }, r.admin));
+  eq(409, await e.status('GET', '/me/photos', null, b.auth));
+  eq(n0, e.count('SELECT COUNT(*) FROM photos'), 'Fotos bleiben gespeichert');
+  // Runde löschen löscht die Fotos
+  eq(204, await e.status('DELETE', `/rounds/${r.id}`, null, r.admin));
+  eq(0, e.count(`SELECT COUNT(*) FROM photos WHERE round_id = '${r.id}'`));
+});
+
+test('2.13: Adventsalbum serverweit abgeschaltet', async () => {
+  const e = await Env.make({ album: { enabled: false } });
+  const r = await e.round();
+  const [, view] = await e.call('GET', `/rounds/${r.id}/admin`, null, r.admin);
+  eq(false, view.albumAvailable);
+  const [s, d] = await e.call('PUT', `/rounds/${r.id}/album`, { enabled: true, pdf: true }, r.admin);
+  eq([409, 'album_unavailable'], [s, d.error]);
+  eq(204, await e.status('PUT', `/rounds/${r.id}/album`, { enabled: false, pdf: false }, r.admin), 'Ausschalten geht immer');
 });
 
 test('2.11: Wichtel-Mixtape – alle Einträge ohne Personenbezug, nur Zusagen, Neu einladen löscht', async () => {

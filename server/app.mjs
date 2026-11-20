@@ -26,12 +26,12 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.12.0';
+export const VERSION = '2.13.0';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
 // Höchstlängen der Chiffretexte (Base64url-Zeichen)
-const L = { META: 24000, ADMIN: 60000, NAME: 600, INVITE: 600, RECOVERY: 1200, SEALED: 2000, ASSIGN: 12000, WISH: 40000, MESSAGE: 3000, EMAIL_VIEW: 1200, JOIN: 600, HINT: 2000, TEAMS: 8000, TEAM: 400, DONE: 400, MIX: 4000, QUESTION: 6000, OWN: 6000, ANSWER: 6000 };
+const L = { META: 24000, ADMIN: 60000, NAME: 600, INVITE: 600, RECOVERY: 1200, SEALED: 2000, ASSIGN: 12000, WISH: 40000, MESSAGE: 3000, EMAIL_VIEW: 1200, JOIN: 600, HINT: 2000, TEAMS: 8000, TEAM: 400, DONE: 400, MIX: 4000, PHOTO_META: 2400, QUESTION: 6000, OWN: 6000, ANSWER: 6000 };
 // Rückfragen: 700 Zeichen Text (bis 2100 Byte UTF-8) plus Schlüssel und Rahmen, Base64 → großzügig 6000
 const Q_PER_DAY = 3;         // je Person (mit Namen) bzw. je Anschluss (anonym) und Tag
 const Q_ANON_ROUND_DAY = 20;  // anonyme Fragen je Runde und Tag insgesamt
@@ -42,6 +42,21 @@ const MAX_MESSAGES = 100;
 const MAX_HINTS = 5;
 // Wichtelpost bleibt nach dem Wichteldatum eine Woche offen: Dankeschön, „Errate deinen Wichtel“, Auflösung
 const POST_EVENT = 7 * DAY;
+// Adventsalbum (2.13): Foto und Vorschau als rohe Chiffretext-Bytes (12 Byte IV + Daten + 16 Byte Tag)
+const PHOTO_MAX = 600 * 1024 + 28;
+const THUMB_MAX = 48 * 1024 + 28;
+const CT_RE = /^v1\.[A-Za-z0-9_-]+$/;
+
+/** Chiffretext „v1.<base64url>“ → Bytes, mit Höchstgröße (nach dem Dekodieren). */
+function photoBytes(b, f, max) {
+  const v = get(b, f);
+  if (typeof v !== 'string') fail(f);
+  if (v.length > Math.ceil((max * 4) / 3) + 8) fail(f, 'ist zu groß');
+  if (!CT_RE.test(v)) fail(f);
+  const raw = Buffer.from(v.slice(3), 'base64url');
+  if (raw.length < 12 + 16 + 1 || raw.length > max) fail(f, raw.length > max ? 'ist zu groß' : 'ungültig');
+  return raw;
+}
 const LANGS = ['de', 'en'];
 const MAIL_TITLE_MAX = 80;
 
@@ -71,6 +86,8 @@ function roundPublic(r) {
     lang: r.lang,
     // Rückfragen (2.9): Modus und öffentlicher Schlüssel der Organisator:in
     questions: { mode: r.q_mode ?? 0, pub: r.q_mode ? r.q_pub : null },
+    // Adventsalbum (2.13)
+    album: { enabled: Boolean(r.album_mode), pdf: Boolean(r.album_pdf) },
   };
 }
 
@@ -137,6 +154,15 @@ export class App {
     return [
       r('GET', '/info', () => this.info()),
       r('GET', '/ideas', () => json(publicIdeas(this.db))),
+      // Adventsalbum (2.13)
+      r('PUT', '/rounds/:id/album', (q, id) => this.albumSettings(q, id)),
+      r('GET', '/rounds/:id/photos', (q, id) => this.adminPhotos(q, id)),
+      r('GET', '/rounds/:id/photos/:id', (q, id, fid) => this.adminPhoto(q, id, fid)),
+      r('DELETE', '/rounds/:id/photos/:id', (q, id, fid) => this.adminDeletePhoto(q, id, fid)),
+      r('GET', '/me/photos', (q) => this.myPhotos(q)),
+      r('POST', '/me/photos', (q) => this.uploadPhoto(q)),
+      r('GET', '/me/photos/:id', (q, fid) => this.myPhoto(q, fid)),
+      r('DELETE', '/me/photos/:id', (q, fid) => this.deleteMyPhoto(q, fid)),
       r('POST', '/organizer/check', (q) => this.organizerCheck(q)),
       r('POST', '/rounds', (q) => this.createRound(q)),
       r('GET', '/rounds/:id/admin', (q, id) => this.adminView(q, id)),
@@ -238,6 +264,121 @@ export class App {
       return noContent();
     }
     throw new HttpError(404, 'not_found', 'Unbekannter Endpunkt.');
+  }
+
+  // ------------------------------------------------------------------ Adventsalbum (2.13)
+  //
+  // Fotos sind im Browser neu gezeichnet (ohne EXIF), verkleinert und mit K_round verschlüsselt. Der Server prüft nur
+  // Format, Größe und Grenzen – den Inhalt kann er nicht sehen. Sichtbar nur für Teilnehmende mit eigenem Zugang,
+  // die zugesagt haben, und für die Organisator:in (zum Löschen). Gelöscht mit der Runde.
+
+  albumLimits() {
+    const a = this.config.album;
+    return { available: a.enabled, personPhotos: a.person_photos, roundBytes: a.round_mb * 1024 * 1024, photoBytes: PHOTO_MAX, thumbBytes: THUMB_MAX };
+  }
+
+  albumSettings(req, roundId) {
+    const round = this.adminRound(req, roundId);
+    const enabled = get(req.body, 'enabled');
+    const pdf = get(req.body, 'pdf');
+    if (typeof enabled !== 'boolean') fail('enabled');
+    if (typeof pdf !== 'boolean') fail('pdf');
+    if (enabled && !this.config.album.enabled) throw new HttpError(409, 'album_unavailable', 'Das Adventsalbum ist auf diesem Server abgeschaltet.');
+    run(this.db, 'UPDATE rounds SET album_mode = ?, album_pdf = ? WHERE id = ?', enabled ? 1 : 0, pdf ? 1 : 0, round.id);
+    return noContent();
+  }
+
+  /** Person mit eigenem Zugang, zugesagt, Album an. */
+  albumPerson(req) {
+    const [p, round] = this.personByToken(req, 'p');
+    if (!round.album_mode || !this.config.album.enabled) throw new HttpError(409, 'album_off', 'Das Adventsalbum ist in dieser Runde nicht eingeschaltet.');
+    if (p.rsvp !== 'dabei') throw new HttpError(409, 'not_participating', 'Das Adventsalbum sehen alle, die zugesagt haben.');
+    return [p, round];
+  }
+
+  photoList(roundId, ownPid = null) {
+    return all(this.db, 'SELECT id, pid, created_at, bytes, thumb, meta_ct FROM photos WHERE round_id = ? ORDER BY created_at, rowid', roundId)
+      .map((f) => ({
+        id: f.id,
+        at: f.created_at,
+        bytes: f.bytes,
+        own: ownPid !== null && f.pid === ownPid,
+        thumbCt: `v1.${Buffer.from(f.thumb).toString('base64url')}`,
+        metaCt: f.meta_ct,
+      }));
+  }
+
+  usage(roundId, pid) {
+    return {
+      mine: pid ? value(this.db, 'SELECT COUNT(*) FROM photos WHERE round_id = ? AND pid = ?', roundId, pid) : 0,
+      roundBytes: value(this.db, 'SELECT COALESCE(SUM(bytes), 0) FROM photos WHERE round_id = ?', roundId),
+    };
+  }
+
+  myPhotos(req) {
+    const [p, round] = this.albumPerson(req);
+    return json({ photos: this.photoList(round.id, p.id), usage: this.usage(round.id, p.id), limits: this.albumLimits() });
+  }
+
+  uploadPhoto(req) {
+    const [p, round] = this.albumPerson(req);
+    const now = this.now();
+    const b = req.body;
+    const id = V.id(b, 'id');
+    const photo = photoBytes(b, 'photoCt', PHOTO_MAX);
+    const thumb = photoBytes(b, 'thumbCt', THUMB_MAX);
+    const metaCt = V.ct(b, 'metaCt', L.PHOTO_META);
+    this.limiter.hit('photo', req.ip, now);
+    const total = photo.length + thumb.length;
+    tx(this.db, () => {
+      const u = this.usage(round.id, p.id);
+      if (u.mine >= this.config.album.person_photos) throw new HttpError(409, 'photo_limit', `Höchstens ${this.config.album.person_photos} Fotos pro Person.`);
+      if (u.roundBytes + total > this.config.album.round_mb * 1024 * 1024) throw new HttpError(409, 'album_full', 'Das Album dieser Runde ist voll.');
+      if (one(this.db, 'SELECT 1 AS x FROM photos WHERE id = ?', id)) throw new HttpError(409, 'exists', 'Dieses Foto gibt es schon.');
+      run(this.db, 'INSERT INTO photos (id, round_id, pid, created_at, bytes, thumb, photo, meta_ct) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        id, round.id, p.id, now, total, thumb, photo, metaCt);
+    });
+    return json({ id, at: now }, 201);
+  }
+
+  photoOut(roundId, fid) {
+    const f = one(this.db, 'SELECT photo FROM photos WHERE id = ? AND round_id = ?', fid, roundId) ?? notFound();
+    return json({ photoCt: `v1.${Buffer.from(f.photo).toString('base64url')}` });
+  }
+
+  myPhoto(req, fid) {
+    const [, round] = this.albumPerson(req);
+    return this.photoOut(round.id, fid);
+  }
+
+  deleteMyPhoto(req, fid) {
+    // Eigene Fotos lassen sich auch löschen, wenn das Album inzwischen aus ist oder man abgesagt hat
+    const [p, round] = this.personByToken(req, 'p');
+    const { changes } = run(this.db, 'DELETE FROM photos WHERE id = ? AND round_id = ? AND pid = ?', fid, round.id, p.id);
+    if (changes !== 1) notFound();
+    return noContent();
+  }
+
+  adminPhotos(req, roundId) {
+    const round = this.adminRound(req, roundId);
+    const pids = new Map(all(this.db, 'SELECT id, pid FROM photos WHERE round_id = ?', round.id).map((f) => [f.id, f.pid]));
+    return json({
+      photos: this.photoList(round.id).map((f) => ({ ...f, pid: pids.get(f.id) ?? null })),
+      usage: this.usage(round.id, null),
+      limits: this.albumLimits(),
+    });
+  }
+
+  adminPhoto(req, roundId, fid) {
+    const round = this.adminRound(req, roundId);
+    return this.photoOut(round.id, fid);
+  }
+
+  adminDeletePhoto(req, roundId, fid) {
+    const round = this.adminRound(req, roundId);
+    const { changes } = run(this.db, 'DELETE FROM photos WHERE id = ? AND round_id = ?', fid, round.id);
+    if (changes !== 1) notFound();
+    return noContent();
   }
 
   // ------------------------------------------------------------------ Rückfragen an die Organisator:in (2.9)
@@ -495,6 +636,7 @@ export class App {
       backupDays: Math.max(0, Math.min(365, Math.trunc(Number(this.config.privacy.backup_days) || 0))),
       mailProvider: transport === 'brevo' || transport === 'smtp' ? transport : null,
       sourceUrl: this.config.source_url,
+      albumAvailable: this.config.album.enabled,
       // Unterstützungslink des Betreibers (2.12), nur wenn eingeschaltet
       donation: publicDonation(this.db),
       version: VERSION,
@@ -587,6 +729,7 @@ export class App {
       maxParticipants: this.config.max_participants,
       // Runden ohne Code: E-Mail nur, wenn im Admin-Bereich erlaubt (bereits eingeschaltete bleiben bedienbar)
       emailAvailable: this.mailer !== null && (round.without_code !== 1 || round.email_enabled === 1 || openSettings(this.db).email),
+      albumAvailable: this.config.album.enabled,
     });
   }
 
