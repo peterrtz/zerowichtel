@@ -11,6 +11,7 @@ import { countdownCard } from './extras.js';
 import { personQuestionsCard, helpButton } from './questions.js';
 import { mixtapeCard } from './mixtape.js';
 import { personAlbumCard } from './album.js';
+import { navTarget, sectionNav } from './section-nav.js';
 import { donationCard } from '../lib/donation.js';
 import { forgetAnonQuestions } from '../lib/questions.js';
 import { recoveryPng, saveImage } from '../lib/recovery-image.js';
@@ -249,20 +250,21 @@ export async function renderPerson(root, pctx) {
     h('p', { class: 'lead' }, t('Hallo {name}!', { name })),
     justClaimed ? notice(t('Einladung angenommen. Sichere jetzt deinen Zugang, dann sag zu oder ab.'), 'ok') : null,
     justJoined ? notice(t('Du bist eingetragen und dabei. Sichere jetzt deinen Zugang.'), 'ok') : null,
-    card(t('Was jetzt?'), h('ul', { class: 'next-steps' }, steps.map((s) => h('li', null, s))), giftBox, timeline(round, { ...(giftable || data.giftDone ? { gift: data.giftDone } : {}), wishFrozen: !!me.wishFrozenAt }),
-      (round.questions?.mode ?? 0) > 0 ? h('p', { class: 'help-row' }, helpButton()) : null),
+    navTarget(card(t('Was jetzt?'), h('ul', { class: 'next-steps' }, steps.map((s) => h('li', null, s))), giftBox, timeline(round, { ...(giftable || data.giftDone ? { gift: data.giftDone } : {}), wishFrozen: !!me.wishFrozenAt }),
+      (round.questions?.mode ?? 0) > 0 ? h('p', { class: 'help-row' }, helpButton()) : null), 'start'),
     me.rsvp !== 'raus' ? countdownCard(round) : null,
-    accessSection,
-    round.status === 'offen' ? rsvpCard : null,
-    drawPart,
-    personQuestionsCard({ pctx, round }),
-    personAlbumCard({ pctx, data, name }),
-    mixtapeCard({ pctx, data, name, reload }),
+    navTarget(accessSection, 'zugang'),
+    round.status === 'offen' ? navTarget(rsvpCard, 'zusage') : null,
+    navTarget(drawPart, 'wichtel'),
+    navTarget(personQuestionsCard({ pctx, round }), 'fragen'),
+    navTarget(personAlbumCard({ pctx, data, name }), 'album'),
+    navTarget(mixtapeCard({ pctx, data, name, reload }), 'mixtape'),
     meta.greeting ? card(null, md(meta.greeting)) : null,
-    round.mode === 'schrott' && me.rsvp !== 'raus' ? schrottCard({ meta, round, packages: counts.dabei, storageKey: round.id }) : null,
-    card(null, factList(round, meta), me.rsvp !== 'raus' ? calendarButton({ round, meta, role: 'person', url: M.jumpLink(pctx.pid) }) : null),
-    emailCard,
+    round.mode === 'schrott' && me.rsvp !== 'raus' ? navTarget(schrottCard({ meta, round, packages: counts.dabei, storageKey: round.id }), 'schrott') : null,
+    navTarget(card(null, factList(round, meta), me.rsvp !== 'raus' ? calendarButton({ round, meta, role: 'person', url: M.jumpLink(pctx.pid) }) : null), 'infos'),
+    navTarget(emailCard, 'email'),
     donationCard(card, { inRound: true }),
     h('p', { class: 'center' }, removeBtn),
   ));
+  sectionNav(root);
 }

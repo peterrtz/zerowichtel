@@ -284,6 +284,37 @@ async function renderPanel(root) {
   }
   renderDonation(data.donation ?? { enabled: false, url: '', label: '', note: '', inRounds: false });
 
+  // ---------- Grenzen des Adventsalbums (2.13.1)
+  const albumCard = card('Adventsalbum');
+  function renderAlbum(a) {
+    const photos = h('input', { type: 'number', id: 'album-limit-photos', min: 1, max: 50, step: 1, inputmode: 'numeric' });
+    const mb = h('input', { type: 'number', id: 'album-limit-mb', min: 1, max: 500, step: 1, inputmode: 'numeric' });
+    photos.value = String(a.personPhotos);
+    mb.value = String(a.roundMb);
+    const save = actionButton('Speichern', async () => {
+      const res = await call(root, 'PUT', '/album', { personPhotos: Number(photos.value), roundMb: Number(mb.value) });
+      toast(`Gespeichert: ${res.album.personPhotos} Fotos je Person, ${res.album.roundMb} MB je Runde.`, 'ok');
+      renderAlbum(res.album);
+    }, { cls: 'btn btn-primary' });
+    const reset = a.source === 'admin' ? actionButton('Auf Werte aus config.json zurücksetzen', async () => {
+      const res = await call(root, 'PUT', '/album', { reset: true });
+      toast('Zurückgesetzt.', 'ok');
+      renderAlbum(res.album);
+    }, { cls: 'btn btn-ghost' }) : null;
+    albumCard.replaceChildren(...[h('h2', null, 'Adventsalbum'),
+      a.enabled ? null : notice('Das Adventsalbum ist in config.json serverweit abgeschaltet (album.enabled = false). Die Grenzen gelten, sobald es wieder an ist.', 'warn'),
+      h('p', null, 'Grenzen für alle Runden. Sie gelten sofort; schon gespeicherte Fotos bleiben, auch wenn eine Runde danach darüber liegt – dann kommt nur nichts mehr dazu.'),
+      h('div', { class: 'inline-fields' },
+        h('div', { class: 'field' }, h('label', { for: 'album-limit-photos' }, 'Fotos je Person (1–50)'), photos),
+        h('div', { class: 'field' }, h('label', { for: 'album-limit-mb' }, 'Speicher je Runde in MB (1–500)'), mb)),
+      h('p', { class: 'hint' }, a.source === 'admin'
+        ? `Eigene Einstellung. Ausgangswerte aus config.json: ${a.defaults.personPhotos} Fotos, ${a.defaults.roundMb} MB.`
+        : 'Zurzeit gelten die Werte aus config.json.'),
+      h('p', { class: 'hint' }, 'Ein Foto belegt meist 150–350 KB, höchstens 600 KB. Fotos liegen in der Datenbank und damit auch in jeder Sicherung – bei vielen Runden Speicherplatz im Blick behalten.'),
+      h('div', { class: 'form-actions' }, save, reset)].filter(Boolean));
+  }
+  renderAlbum(data.album ?? { personPhotos: 20, roundMb: 60, source: 'config', enabled: true, defaults: { personPhotos: 20, roundMb: 60 } });
+
   // ---------- Geschenkvorschläge für den Ideen-Würfel (2.12)
   const ideasCard = h('details', { class: 'card ideas-admin', id: 'ideen' });
   const CLASS_LABEL = (max) => (max === null ? 'über 50 €' : `bis ${max} €`);
@@ -381,6 +412,7 @@ async function renderPanel(root) {
     openCard,
     donateCard,
     ideasCard,
+    albumCard,
     overview,
     log,
     h('div', { class: 'form-actions' },

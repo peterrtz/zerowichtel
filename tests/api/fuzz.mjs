@@ -35,7 +35,7 @@ const endpoints = [
   ['DELETE', `/rounds/${nid()}`], ['POST', `/admin/${'a'.repeat(26)}/login`], ['GET', '/admin/x'],
   // seit 2.3: Gruppenlink, Rätselhinweise; 2.4: Admin „Anlegen ohne Code“; 2.5: Team-Wichteln
   ['PUT', `/rounds/${rid}/join`], ['DELETE', `/rounds/${rid}/join`], ['GET', '/join'], ['POST', '/join'],
-  ['POST', '/mailbox/hints'], ['DELETE', `/mailbox/hints/${nid()}`], ['PUT', `/admin/${'a'.repeat(26)}/open`], ['PUT', `/admin/${'a'.repeat(26)}/donation`], ['PUT', `/admin/${'a'.repeat(26)}/ideas`],
+  ['POST', '/mailbox/hints'], ['DELETE', `/mailbox/hints/${nid()}`], ['PUT', `/admin/${'a'.repeat(26)}/open`], ['PUT', `/admin/${'a'.repeat(26)}/donation`], ['PUT', `/admin/${'a'.repeat(26)}/ideas`], ['PUT', `/admin/${'a'.repeat(26)}/album`],
   ['PUT', '/me/team'], ['PUT', `/rounds/${rid}/participants/${pid}/team`],
   // 2.13: Adventsalbum
   ['PUT', `/rounds/${rid}/album`], ['GET', `/rounds/${rid}/photos`], ['GET', `/rounds/${rid}/photos/${nid()}`], ['DELETE', `/rounds/${rid}/photos/${nid()}`],

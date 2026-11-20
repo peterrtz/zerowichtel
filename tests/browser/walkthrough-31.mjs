@@ -183,6 +183,53 @@ try {
     if (/Plätzchen/.test(srv.sql('SELECT meta_ct FROM photos'))) problems.push('Bildunterschrift im Klartext');
   });
 
+  await step('Zuschneiden (2.13.1): Quadrat, Ziehen mit der Maus, Tastatur, Ganzes Bild; Abbrechen lädt nichts hoch', async () => {
+    const a = pages.Anna;
+    await a.bringToFront();
+    const n0 = JSON.parse(srv.sql('SELECT COUNT(*) AS n FROM photos'))[0].n;
+    const input = await a.$('#album-file');
+    await input.uploadFile(join(FIX, 'advent-gps.jpg'));
+    await a.waitForFunction(() => /Hochladen/.test(document.querySelector('#adventsalbum .album-stage')?.textContent ?? ''), { timeout: 20000 });
+    await clickText(a, 'Zuschneiden', '#adventsalbum');
+    await a.waitForSelector('#adventsalbum .crop-rect');
+    const sizeText = () => a.$eval('#adventsalbum .crop-size', (e) => e.textContent);
+    if (!/3000 × 2000 Pixel von 3000 × 2000/.test(await sizeText())) problems.push(`Start: ${await sizeText()}`);
+    // Quadrat
+    await a.evaluate(() => [...document.querySelectorAll('#adventsalbum .crop-aspect')].find((l) => l.textContent.includes('Quadrat')).querySelector('input').click());
+    if (!/2000 × 2000 Pixel/.test(await sizeText())) problems.push(`Quadrat: ${await sizeText()}`);
+    // Mit der Maus die rechte untere Ecke nach innen ziehen
+    const hd = await a.$('#adventsalbum .crop-se');
+    const bb = await hd.boundingBox();
+    await a.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+    await a.mouse.down();
+    await a.mouse.move(bb.x - 80, bb.y - 60, { steps: 5 });
+    await a.mouse.up();
+    const dragged = await sizeText();
+    const m = /(\d+) × (\d+) Pixel von/.exec(dragged);
+    if (!m || Number(m[1]) >= 2000 || m[1] !== m[2]) problems.push(`Ziehen (quadratisch, kleiner): ${dragged}`);
+    // Tastatur: verkleinern und verschieben
+    await a.focus('#adventsalbum .crop-rect');
+    await a.keyboard.press('Minus');
+    await a.keyboard.press('ArrowLeft');
+    const keyed = /(\d+) × (\d+) Pixel von/.exec(await sizeText());
+    if (!keyed || Number(keyed[1]) >= Number(m?.[1] ?? 0) || keyed[1] !== keyed[2]) problems.push(`Tastatur: ${await sizeText()}`);
+    await axe(a, 'Zuschneiden');
+    await shotCard(a, 'Seitenverhältnis', 'zuschneiden');
+    // Ganzes Bild (bei Quadrat: größtes Quadrat) und übernehmen → 1600 × 1600
+    await clickText(a, 'Ganzes Bild', '#adventsalbum');
+    if (!/2000 × 2000 Pixel/.test(await sizeText())) problems.push(`Ganzes Bild (quadratisch): ${await sizeText()}`);
+    await clickText(a, 'Zuschnitt übernehmen', '#adventsalbum');
+    await waitText(a, 'Zuschnitt übernommen.');
+    const info = await a.$eval('#adventsalbum .album-preview .hint', (e) => e.textContent);
+    if (!/1600 × 1600 Pixel/.test(info)) problems.push(`Nach dem Zuschnitt: ${info}`);
+    if (await a.$eval('#adventsalbum .crop-panel', (e) => !e.hidden)) problems.push('Zuschnitt-Bereich bleibt offen');
+    // Abbrechen: nichts hochgeladen
+    await a.evaluate(() => [...document.querySelectorAll('#adventsalbum .album-preview button')].find((b) => b.textContent === 'Abbrechen').click());
+    await a.waitForFunction(() => !document.querySelector('#adventsalbum .album-preview'), { timeout: 5000 });
+    const n1 = JSON.parse(srv.sql('SELECT COUNT(*) AS n FROM photos'))[0].n;
+    if (n1 !== n0) problems.push(`Abbrechen hat hochgeladen (${n0} → ${n1})`);
+  });
+
   await step('Benedikt: PNG im Hochformat mit Transparenz; falsches HEIC wird verständlich abgelehnt', async () => {
     const b = pages.Benedikt;
     await b.bringToFront();

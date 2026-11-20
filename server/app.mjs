@@ -15,6 +15,7 @@ import { checkCode, consumeCode } from './codes.mjs';
 import { openSettings, openStatus, openUsage, saveOpenSettings, describeOpen, OPEN_MAX } from './open-creation.mjs';
 import { donationSettings, saveDonation, publicDonation, describeDonation, DonationError } from './donation.mjs';
 import { ideasSettings, saveIdeas, publicIdeas, describeIdeas, IdeasError } from './ideas.mjs';
+import { albumLimits, saveAlbumLimits, resetAlbumLimits, describeAlbumLimits, AlbumLimitsError } from './album-limits.mjs';
 import { countAnalog } from './stats.mjs';
 import { maybeCleanup, shred } from './cleanup.mjs';
 import crypto from 'node:crypto';
@@ -26,7 +27,7 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.13.0';
+export const VERSION = '2.13.1';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
@@ -253,12 +254,14 @@ export class App {
     if (method === 'GET' && sub === '/overview') {
       return json({ now, expiresAt: exp, codes: this.admin.codes(now), stats: this.admin.stats(now), log: this.admin.recentLog(),
         openCreation: { ...openStatus(this.db), codeRequiredByConfig: Boolean(this.config.require_organizer_code) },
-        donation: donationSettings(this.db), ideas: ideasSettings(this.db) });
+        donation: donationSettings(this.db), ideas: ideasSettings(this.db),
+        album: { ...albumLimits(this.db, this.config), enabled: this.config.album.enabled, defaults: { personPhotos: this.config.album.person_photos, roundMb: this.config.album.round_mb } } });
     }
     if (method === 'POST' && sub === '/codes') return this.adminCreateCode(body, now);
     if (method === 'PUT' && sub === '/open') return this.adminOpenCreation(body, now);
     if (method === 'PUT' && sub === '/donation') return this.adminDonation(body, now);
     if (method === 'PUT' && sub === '/ideas') return this.adminIdeas(body, now);
+    if (method === 'PUT' && sub === '/album') return this.adminAlbumLimits(body, now);
     if (method === 'DELETE' && revoke) {
       this.admin.revokeCode(revoke[1], now);
       return noContent();
@@ -273,9 +276,10 @@ export class App {
   // die zugesagt haben, und für die Organisator:in (zum Löschen). Gelöscht mit der Runde.
 
   albumLimits() {
-    const a = this.config.album;
-    return { available: a.enabled, personPhotos: a.person_photos, roundBytes: a.round_mb * 1024 * 1024, photoBytes: PHOTO_MAX, thumbBytes: THUMB_MAX };
+    const l = albumLimits(this.db, this.config);
+    return { available: this.config.album.enabled, personPhotos: l.personPhotos, roundBytes: l.roundMb * 1024 * 1024, photoBytes: PHOTO_MAX, thumbBytes: THUMB_MAX };
   }
+
 
   /**
    * Vorprüfung vor dem Lesen eines Foto-Uploads (Sicherheitsprüfung 2.13, Nr. 4): Nur mit gültigem Teilnehmerzugang,
@@ -355,8 +359,9 @@ export class App {
     const total = photo.length + thumb.length;
     tx(this.db, () => {
       const u = this.usage(round.id, p.id);
-      if (u.mine >= this.config.album.person_photos) throw new HttpError(409, 'photo_limit', `Höchstens ${this.config.album.person_photos} Fotos pro Person.`);
-      if (u.roundBytes + total > this.config.album.round_mb * 1024 * 1024) throw new HttpError(409, 'album_full', 'Das Album dieser Runde ist voll.');
+      const lim = this.albumLimits();
+      if (u.mine >= lim.personPhotos) throw new HttpError(409, 'photo_limit', `Höchstens ${lim.personPhotos} Fotos pro Person.`);
+      if (u.roundBytes + total > lim.roundBytes) throw new HttpError(409, 'album_full', 'Das Album dieser Runde ist voll.');
       if (one(this.db, 'SELECT 1 AS x FROM photos WHERE id = ?', id)) throw new HttpError(409, 'exists', 'Dieses Foto gibt es schon.');
       run(this.db, 'INSERT INTO photos (id, round_id, pid, created_at, bytes, thumb, photo, meta_ct) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         id, round.id, p.id, now, total, thumb, photo, metaCt);
@@ -546,6 +551,22 @@ export class App {
     this.limiter.hit('analog', req.ip, now);
     countAnalog(this.db, now);
     return noContent();
+  }
+
+  /** Grenzen des Adventsalbums (2.13.1): { personPhotos, roundMb } oder { reset: true } = zurück zu config.json. */
+  adminAlbumLimits(b, now) {
+    if (get(b, 'reset') === true) resetAlbumLimits(this.db);
+    else {
+      try {
+        saveAlbumLimits(this.db, { personPhotos: get(b, 'personPhotos'), roundMb: get(b, 'roundMb') });
+      } catch (e) {
+        if (e instanceof AlbumLimitsError) throw new HttpError(400, `invalid_${e.field}`, e.message);
+        throw e;
+      }
+    }
+    const l = albumLimits(this.db, this.config);
+    this.admin.log(now, 'Adventsalbum', describeAlbumLimits(l));
+    return json({ album: { ...l, enabled: this.config.album.enabled, defaults: { personPhotos: this.config.album.person_photos, roundMb: this.config.album.round_mb } } });
   }
 
   /** Geschenkvorschläge des Ideen-Würfels (2.12): { mode: builtin|extend|replace, items: [{ max, de, en }] }. */

@@ -41,8 +41,8 @@ export const DEFAULTS = {
   privacy: { mail_provider: '', no_access_logs: false, backup_days: 0 },
   admin: { enabled: false, session_minutes: 30 },
   // Adventsalbum (2.13): enabled = false schaltet es serverweit ab (bestehende Fotos bleiben bis zur Löschung der Runde);
-  // round_mb = Speicher je Runde, person_photos = Fotos je Person
-  album: { enabled: true, round_mb: 60, person_photos: 12 },
+  // round_mb = Speicher je Runde, person_photos = Fotos je Person – Ausgangswerte; im Admin-Bereich änderbar (2.13.1)
+  album: { enabled: true, round_mb: 60, person_photos: 20 },
   mail: { transport: null, from_email: '', from_name: 'ZeroWichtel' },
 };
 

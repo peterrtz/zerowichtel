@@ -141,10 +141,10 @@ function canvasBlob(canvas, type, quality) {
 }
 
 /** Zeichnet neu und kodiert; versucht WebP, sonst JPEG; senkt Qualität und Größe, bis es passt. */
-async function encode(src, edge, maxBytes) {
-  const W = src.width;
-  const H = src.height;
-  let size = fitSize(W, H, edge);
+async function encode(src, edge, maxBytes, crop = null) {
+  // crop: Ausschnitt in Pixeln des Originals (2.13.1); ohne = ganzes Bild
+  const c = crop ?? { x: 0, y: 0, w: src.width, h: src.height };
+  let size = fitSize(c.w, c.h, edge);
   for (let round = 0; round < 6; round++) {
     const canvas = document.createElement('canvas');
     canvas.width = size.w;
@@ -153,7 +153,7 @@ async function encode(src, edge, maxBytes) {
     g.fillStyle = '#fff'; // transparente PNGs: weißer Hintergrund statt schwarz im JPEG
     g.fillRect(0, 0, size.w, size.h);
     g.imageSmoothingQuality = 'high';
-    g.drawImage(src, 0, 0, size.w, size.h);
+    g.drawImage(src, c.x, c.y, c.w, c.h, 0, 0, size.w, size.h);
     for (const q of [0.82, 0.72, 0.6]) {
       let blob = await canvasBlob(canvas, 'image/webp', q);
       if (!blob || blob.type !== 'image/webp') blob = await canvasBlob(canvas, 'image/jpeg', q);
@@ -168,16 +168,28 @@ async function encode(src, edge, maxBytes) {
   throw new Error(t('Das Foto ließ sich nicht klein genug speichern.'));
 }
 
-/** Foto aufbereiten: großes Bild und Vorschau, ohne Metadaten. */
-export async function preparePhoto(file) {
+/** Datei öffnen (einmal entpackt, für Vorschau und Zuschnitt). close() gibt den Speicher frei. */
+export async function openSource(file) {
   if (!file || file.size > 40 * 1024 * 1024) throw new Error(t('Die Datei ist zu groß (höchstens 40 MB).'));
   const src = await decode(file);
+  return { src, w: src.width, h: src.height, close: () => src.close?.() };
+}
+
+/** Großes Bild und Vorschau aus einer geöffneten Quelle, optional zugeschnitten; ohne Metadaten. */
+export async function prepareFromSource(source, crop = null) {
+  const c = crop && crop.w > 0 && crop.h > 0 ? crop : null;
+  const full = await encode(source.src, PHOTO.edge, PHOTO.maxBytes, c);
+  const thumb = await encode(source.src, PHOTO.thumbEdge, PHOTO.thumbMaxBytes, c);
+  return { full, thumb, crop: c };
+}
+
+/** Foto aufbereiten: großes Bild und Vorschau, ohne Metadaten. */
+export async function preparePhoto(file, crop = null) {
+  const source = await openSource(file);
   try {
-    const full = await encode(src, PHOTO.edge, PHOTO.maxBytes);
-    const thumb = await encode(src, PHOTO.thumbEdge, PHOTO.thumbMaxBytes);
-    return { full, thumb };
+    return await prepareFromSource(source, crop);
   } finally {
-    src.close?.();
+    source.close();
   }
 }
 

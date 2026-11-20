@@ -75,8 +75,9 @@
   // Einrichten auf der Konsole: zw admin setup – danach hier "enabled": true.
   "admin": { "enabled": false, "session_minutes": 30 },
   // Adventsalbum (ab 2.13): "enabled": false schaltet es serverweit ab. round_mb = Speicher je Runde (MB),
-  // person_photos = Fotos je Person. Fotos liegen in der Datenbank und damit auch in jeder Sicherung.
-  "album": { "enabled": true, "round_mb": 60, "person_photos": 12 },
+  // person_photos = Fotos je Person – Ausgangswerte, im Admin-Bereich oder mit „zw album“ änderbar.
+  // Fotos liegen in der Datenbank und damit auch in jeder Sicherung.
+  "album": { "enabled": true, "round_mb": 60, "person_photos": 20 },
 
   // Hinter einem Reverse Proxy: Header mit der echten Client-IP (sonst null).
   // Nur setzen, wenn der Proxy den Header garantiert überschreibt (Caddy tut das).

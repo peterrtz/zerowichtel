@@ -1,5 +1,6 @@
 // ZeroWichtel – gemeinsame Bausteine der Ansichten.
 
+import { removeSectionNav } from './section-nav.js';
 import { h, svg, clear } from '../lib/dom.js';
 import { toDom } from '../lib/markdown.js';
 import { formatDate, formatShort, relative, euro, nowSec } from '../lib/dates.js';
@@ -212,6 +213,8 @@ function focusKey(el) {
 }
 
 export function mount(root, node) {
+  // Sprungmenü der vorigen Seite entfernen; Seiten mit Abschnitten bauen es nach dem Einhängen neu (2.13.1)
+  if (!node.classList?.contains('loading')) removeSectionNav();
   const nav = navigationPending;
   const isLoading = node.classList?.contains('loading');
   const prev = document.activeElement;

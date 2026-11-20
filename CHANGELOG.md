@@ -1,5 +1,16 @@
 # Änderungen
 
+## 2.13.1 – 2026-11-20
+
+Kein neues Datenbankschema.
+
+- **Foto zuschneiden** vor dem Hochladen: Rahmen mit vier Eckgriffen, frei oder als Original, Quadrat 1:1, 4:3, 3:4 oder 16:9; bedienbar mit Maus, Finger und Tastatur (Pfeiltasten verschieben, Plus/Minus ändern die Größe). Der Ausschnitt wird aus dem Original neu berechnet, Metadaten fallen wie bisher weg.
+- **Sprungmenü rechts** auf den Seiten für Teilnehmende und Organisator:in: Icons zu allen vorhandenen Abschnitten (Was jetzt?, Zugang, Wichtel und Wünsche, Rückfragen, Adventsalbum, Mixtape, Eckdaten …), aktueller Abschnitt hervorgehoben, „Nach oben“. Auf breiten Bildschirmen eine schwebende Leiste mit Beschriftung bei Hover und Fokus, auf schmalen ein runder Knopf unten rechts mit aufklappbarer Liste (Escape schließt).
+- **Neue Fotos**: Zahl am Album-Symbol (und am Menüknopf) für Fotos anderer, die auf diesem Gerät noch nicht angesehen wurden; in der Timeline mit „neu“ markiert. Als gesehen gilt das Album, wenn es kurz sichtbar war. Gemerkt nur im Browser.
+- **Grenzen des Albums im Admin-Bereich** (Karte „Adventsalbum“) oder per `zw album set --photos N --mb N`: Fotos je Person (1–50) und Speicher je Runde (1–500 MB), sofort wirksam für alle Runden; `zw album reset` bzw. „Auf Werte aus config.json zurücksetzen“. Neuer Ausgangswert: **20 Fotos je Person** (bisher 12), 60 MB je Runde.
+- Der Menüknopf auf dem Handy weicht unten eingeblendeten Meldungen aus, statt von ihnen verdeckt zu werden.
+- Speicheranzeige des Albums zeigt kleine Mengen als „< 0,1 MB“ statt „0“.
+
 ## 2.13.0 – 2026-11-20
 
 Datenbankschema 13 (nur ergänzend: `rounds.album_mode`, `rounds.album_pdf`, Tabelle `photos`).

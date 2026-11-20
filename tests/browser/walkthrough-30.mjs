@@ -159,7 +159,7 @@ try {
     await org.$eval('form.form', (f) => f.requestSubmit());
     await waitText(org, 'Zuerst: Admin-Link sichern');
     await org.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Erledigt, ich habe den Link gesichert').click());
-    await waitText(org, 'Teilnehmende');
+    await org.waitForSelector('.add-person input');
     await org.type('.add-person input', 'Erna');
     await org.$eval('.add-person', (f) => f.requestSubmit());
     await org.waitForFunction(() => [...document.querySelectorAll('.person-name')].some((e) => e.textContent === 'Erna'), { polling: 100 });
@@ -295,6 +295,22 @@ try {
     if (rolled[0] !== 4 || rolled[2] !== 4) problems.push(`Altersauswahl: ${rolled[0]} Optionen`);
     if (rolled[1] !== 'Selbstgebackene Plätzchen in einer Dose') problems.push(`Würfel bei 5 €: ${rolled[1]}`);
     if (rolled[3] !== 'Selbstgebackene Plätzchen in einer Dose') problems.push(`Würfel bei 3 €: ${rolled[3]} (Klasse bis 5 € passt immer)`);
+  });
+
+  await step('Adventsalbum-Grenzen im Admin-Bereich (2.13.1): Standard 20/60, ändern, zurücksetzen', async () => {
+    await admin.bringToFront();
+    await waitText(admin, 'Grenzen für alle Runden.');
+    const v = await admin.evaluate(() => [document.getElementById('album-limit-photos').value, document.getElementById('album-limit-mb').value]);
+    if (v.join() !== '20,60') problems.push(`Standard: ${v}`);
+    await admin.evaluate(() => { document.getElementById('album-limit-photos').value = '8'; document.getElementById('album-limit-mb').value = '25'; });
+    await admin.evaluate(() => [...document.getElementById('album-limit-mb').closest('.card').querySelectorAll('button')].find((b) => b.textContent === 'Speichern').click());
+    await waitText(admin, 'Gespeichert: 8 Fotos je Person, 25 MB je Runde.');
+    const stored = JSON.parse(JSON.parse(srv.sql("SELECT value FROM meta WHERE key = 'album_limits'"))[0].value);
+    if (stored.personPhotos !== 8 || stored.roundMb !== 25) problems.push(`Gespeichert: ${JSON.stringify(stored)}`);
+    await axe(admin, 'Admin: Adventsalbum-Grenzen');
+    await admin.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent === 'Auf Werte aus config.json zurücksetzen').click());
+    await waitText(admin, 'Zurückgesetzt.');
+    if (srv.sql("SELECT value FROM meta WHERE key = 'album_limits'") !== '[]') problems.push('Zurücksetzen hat den Eintrag nicht entfernt');
   });
 
   await step('Ausschalten: Link verschwindet überall', async () => {

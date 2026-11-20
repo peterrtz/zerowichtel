@@ -1800,6 +1800,55 @@ test('2.13: Sicherheitsprüfung – Name aus der Teilnehmerliste, eigene Lesegre
   eq(200, await e.status('GET', '/me', null, a.auth), 'andere Lesewege unberührt');
 });
 
+test23('2.13.1: Grenzen des Adventsalbums – Standard 20, Admin-Bereich und Kommandozeile, sofort wirksam', async () => {
+  const a = await adminEnv();
+  const e = a.env;
+  const [, d] = await adminLogin(a);
+  const put = (b, auth = d.session) => e.call('PUT', `/admin/${a.slug}/album`, b, auth);
+  let [, ov] = await e.call('GET', `/admin/${a.slug}/overview`, null, d.session);
+  eq([20, 60, 'config'], [ov.album.personPhotos, ov.album.roundMb, ov.album.source], 'Standard: 20 Fotos, 60 MB');
+  eq(401, (await put({ personPhotos: 5, roundMb: 10 }, null))[0]);
+  for (const [b, why] of [[{ personPhotos: 0, roundMb: 10 }, '0 Fotos'], [{ personPhotos: 51, roundMb: 10 }, '51 Fotos'], [{ personPhotos: 5, roundMb: 501 }, '501 MB'],
+    [{ personPhotos: '5', roundMb: 10 }, 'Text'], [{ personPhotos: 2.5, roundMb: 10 }, 'Bruch'], [{ roundMb: 10 }, 'fehlt']]) eq(400, (await put(b))[0], why);
+  let [s, r] = await put({ personPhotos: 2, roundMb: 1 });
+  eq([200, 2, 1, 'admin'], [s, r.album.personPhotos, r.album.roundMb, r.album.source]);
+  // wirkt sofort beim Hochladen
+  const round = await e.round();
+  const p = await e.person(round);
+  p.auth = await e.claim(p);
+  eq(200, await e.status('PUT', '/me/rsvp', { rsvp: 'dabei' }, p.auth));
+  eq(204, await e.status('PUT', `/rounds/${round.id}/album`, { enabled: true, pdf: false }, round.admin));
+  eq(2, (await e.call('GET', '/me/photos', null, p.auth))[1].limits.personPhotos);
+  const photo = (n = 1000) => ({ id: nid(), photoCt: ct(n), thumbCt: ct(200), metaCt: ct(80) });
+  eq(201, await e.status('POST', '/me/photos', photo(), p.auth));
+  eq(201, await e.status('POST', '/me/photos', photo(), p.auth));
+  [s, r] = await e.call('POST', '/me/photos', photo(), p.auth);
+  eq([409, 'Höchstens 2 Fotos pro Person.'], [s, r.message]);
+  // höher setzen → geht wieder; MB-Grenze 1 MB greift
+  eq(200, (await put({ personPhotos: 5, roundMb: 1 }))[0]);
+  eq(201, await e.status('POST', '/me/photos', photo(500 * 1024), p.auth));
+  eq(409, await e.status('POST', '/me/photos', photo(600 * 1024), p.auth), 'über 1 MB je Runde');
+  // Zurücksetzen auf config.json
+  [s, r] = await put({ reset: true });
+  eq([200, 20, 60, 'config'], [s, r.album.personPhotos, r.album.roundMb, r.album.source]);
+  [, ov] = await e.call('GET', `/admin/${a.slug}/overview`, null, d.session);
+  ok(ov.log.some((l) => l.event === 'Adventsalbum' && /5 Fotos je Person, 1 MB je Runde/.test(l.detail)), 'protokolliert');
+  // Kommandozeile
+  let c = e.s.cli('album', 'set', '--photos', '30', '--mb', '120');
+  eq(0, c.status, c.out);
+  ok(/30 Fotos je Person, 120 MB je Runde/.test(c.out), c.out);
+  eq(30, (await e.call('GET', '/me/photos', null, p.auth))[1].limits.personPhotos);
+  c = e.s.cli('album', 'set', '--photos', '99');
+  ok(c.status !== 0 && /1 bis 50/.test(c.out), c.out);
+  c = e.s.cli('album', 'set', '--mb', 'viel');
+  ok(c.status !== 0, c.out);
+  c = e.s.cli('album', 'reset');
+  ok(/20 Fotos je Person, 60 MB je Runde \(aus config\.json\)/.test(c.out), c.out);
+  // Kaputter Eintrag → Werte aus config.json
+  e.s.exec("INSERT OR REPLACE INTO meta (key, value) VALUES ('album_limits', '{\"personPhotos\":999}')");
+  eq(20, (await e.call('GET', '/me/photos', null, p.auth))[1].limits.personPhotos);
+});
+
 test('2.13: Adventsalbum serverweit abgeschaltet', async () => {
   const e = await Env.make({ album: { enabled: false } });
   const r = await e.round();

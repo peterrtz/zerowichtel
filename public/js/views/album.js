@@ -4,10 +4,15 @@ import * as P from '../lib/photos.js';
 import { adventSundays, dayKey } from '../lib/photos.js';
 import { buildAlbumPdf, LAYOUTS, DESIGNS, normalizeOptions, COVER_TEXT_MAX } from '../lib/album-pdf.js';
 import { nowSec, formatDate } from '../lib/dates.js';
-import { t, tn } from '../lib/i18n.js';
+import { t, tn, lang } from '../lib/i18n.js';
 import { card, notice, chip } from './common.js';
+import { cropper } from './cropper.js';
+import { setNavBadge } from './section-nav.js';
 
-const MB = (b) => (b / 1024 / 1024).toLocaleString(undefined, { maximumFractionDigits: 1 });
+const MB = (b) => {
+  const loc = lang() === 'en' ? 'en-GB' : 'de-DE';
+  return b > 0 && b < 0.1 * 1024 * 1024 ? `< ${(0.1).toLocaleString(loc)}` : (b / 1024 / 1024).toLocaleString(loc, { maximumFractionDigits: 1 });
+};
 
 /** Nach Tagen gruppiert, neueste zuerst. */
 function groupByDay(items) {
@@ -27,6 +32,45 @@ function dayLabel(key, items, eventDate) {
   if (advent) extra.push(t('{n}. Advent', { n: advent }));
   if (eventDate && dayKey(eventDate) === key) extra.push(t('Bescherung'));
   return [formatDate(items[0].at), ...extra].join(' · ');
+}
+
+// ---------------------------------------------------------------- Neue, ungesehene Fotos (2.13.1)
+// Pro Gerät gemerkt: Zeitpunkt des neuesten gesehenen Fotos. Nur im Browser, der Server erfährt nichts davon.
+const seenKey = (roundId, who) => `zw.albumSeen.${roundId}.${who}`;
+function readSeen(key) {
+  try { return Number(localStorage.getItem(key)) || 0; } catch { return 0; }
+}
+function writeSeen(key, at) {
+  try { localStorage.setItem(key, String(at)); } catch { /* nur Komfort */ }
+}
+
+/**
+ * Zählt neue Fotos anderer, setzt die Zahl am Sprungmenü und merkt sie als gesehen, sobald das Album
+ * mindestens 1,5 s sichtbar war. Gibt isNew(item) für die Markierung „neu“ zurück.
+ */
+function trackNew(key, items, target) {
+  const lastSeen = readSeen(key);
+  const fresh = items.filter((it) => !it.own && !it.broken && it.at > lastSeen);
+  const newest = items.reduce((m, it) => Math.max(m, it.at), lastSeen);
+  const ids = new Set(fresh.map((it) => it.id));
+  setNavBadge('album', fresh.length, tn(fresh.length, '{n} neues Foto', '{n} neue Fotos'));
+  const markSeen = () => {
+    if (newest > readSeen(key)) writeSeen(key, newest);
+    setNavBadge('album', 0);
+  };
+  if (fresh.length && typeof IntersectionObserver === 'function') {
+    let timer = null;
+    const io = new IntersectionObserver(([e]) => {
+      clearTimeout(timer);
+      if (e.isIntersecting && document.visibilityState === 'visible') {
+        timer = setTimeout(() => { markSeen(); io.disconnect(); }, 1500);
+      }
+    }, { threshold: 0.3 });
+    io.observe(target);
+  } else if (!fresh.length && newest > lastSeen) {
+    writeSeen(key, newest); // nur eigene Fotos neu: gleich als gesehen merken
+  }
+  return { isNew: (it) => ids.has(it.id), markSeen };
 }
 
 let viewer = null;
@@ -66,7 +110,7 @@ function showPhoto(item, getFull, onDelete) {
   }).catch((e) => { status.textContent = e.message; });
 }
 
-function timelineView(items, { eventDate, getFull, canDelete, onDelete }) {
+function timelineView(items, { eventDate, getFull, canDelete, onDelete, isNew = () => false }) {
   if (!items.length) return h('p', { class: 'hint' }, t('Noch keine Fotos. Plätzchen gebacken, Weihnachtsmarkt besucht, die erste Kerze angezündet? Teil es hier mit der Runde.'));
   const groups = groupByDay(items);
   return h('div', { class: 'album-timeline' }, [...groups].map(([key, list]) => h('section', { class: 'album-day' },
@@ -74,7 +118,7 @@ function timelineView(items, { eventDate, getFull, canDelete, onDelete }) {
     h('ul', { class: 'album-grid' }, list.map((it) => h('li', null,
       h('button', {
         type: 'button', class: 'album-thumb',
-        'aria-label': it.broken ? t('Unlesbares Foto') : t('Foto von {name} öffnen: {caption}', { name: it.meta.name || '?', caption: it.meta.caption || t('ohne Bildunterschrift') }),
+        'aria-label': (it.broken ? t('Unlesbares Foto') : t('Foto von {name} öffnen: {caption}', { name: it.meta.name || '?', caption: it.meta.caption || t('ohne Bildunterschrift') })) + (isNew(it) ? ` (${t('neu')})` : ''),
         on: {
           click: async () => {
             if (!it.broken) return showPhoto(it, getFull, canDelete(it) ? onDelete : null);
@@ -84,7 +128,8 @@ function timelineView(items, { eventDate, getFull, canDelete, onDelete }) {
           },
         },
       },
-      it.thumbUrl ? h('img', { src: it.thumbUrl, alt: '', loading: 'lazy' }) : h('span', { class: 'album-broken' }, '?')),
+      it.thumbUrl ? h('img', { src: it.thumbUrl, alt: '', loading: 'lazy' }) : h('span', { class: 'album-broken' }, '?'),
+      isNew(it) ? h('span', { class: 'album-new' }, t('neu')) : null),
       h('p', { class: 'album-cap' },
         it.meta?.caption ? h('span', null, it.meta.caption) : null,
         h('span', { class: 'hint' }, it.meta?.name ?? ''))))))));
@@ -202,6 +247,7 @@ export function personAlbumCard({ pctx, data, name }) {
         eventDate: round.eventDate, getFull,
         canDelete: (it) => it.own,
         onDelete: async (it) => { await P.deleteMine(pctx, it.id); toast(t('Foto gelöscht.'), 'ok'); await render(); },
+        isNew: trackNew(seenKey(round.id, pctx.pid), state.items, list).isNew,
       }));
   };
 
@@ -209,29 +255,72 @@ export function personAlbumCard({ pctx, data, name }) {
   const file = h('input', { type: 'file', accept: 'image/*', class: 'visually-hidden', id: 'album-file', tabindex: '-1', 'aria-label': t('Foto hinzufügen') });
   const stage = h('div', { class: 'album-stage' });
   const pick = h('button', { type: 'button', class: 'btn btn-primary', on: { click: () => file.click() } }, t('Foto hinzufügen'));
+  let source = null; // geöffnete Datei (für Zuschnitt), wird nach Hochladen/Abbrechen freigegeben
   file.addEventListener('change', async () => {
     const f = file.files?.[0];
     file.value = '';
     if (!f) return;
+    source?.close();
+    source = null;
     clear(stage);
     add(stage, h('p', { class: 'hint' }, t('Foto wird vorbereitet …')));
     let prepared;
     try {
-      prepared = await P.preparePhoto(f);
+      source = await P.openSource(f);
+      prepared = await P.prepareFromSource(source);
     } catch (e) {
+      source?.close();
+      source = null;
       clear(stage);
       add(stage, notice(e.message, 'warn'));
       return;
     }
-    const url = URL.createObjectURL(new Blob([prepared.thumb.bytes], { type: `image/${prepared.thumb.type}` }));
+    let url = null;
+    const preview = h('img', { alt: t('Vorschau') });
+    const info = h('p', { class: 'hint' });
+    const showPrepared = () => {
+      if (url) URL.revokeObjectURL(url);
+      url = URL.createObjectURL(new Blob([prepared.thumb.bytes], { type: `image/${prepared.thumb.type}` }));
+      preview.src = url;
+      info.textContent = t('{kb} KB, {w} × {h} Pixel. Ort, Kamera und Aufnahmedaten sind entfernt.', { kb: Math.round(prepared.full.bytes.length / 1024), w: prepared.full.w, h: prepared.full.h });
+    };
+    showPrepared();
     const cap = h('input', { type: 'text', id: 'album-caption', maxlength: P.PHOTO.caption, placeholder: t('z. B. Erste Plätzchen 🍪') });
-    const done = () => { URL.revokeObjectURL(url); clear(stage); };
+    const done = () => {
+      if (url) URL.revokeObjectURL(url);
+      source?.close();
+      source = null;
+      clear(stage);
+    };
+    // Zuschneiden (2.13.1): Rahmen auf einer verkleinerten Ansicht, Ergebnis aus dem Original neu berechnet
+    const cropPanel = h('div', { class: 'crop-panel', hidden: true });
+    const cropBtn = h('button', { type: 'button', class: 'btn btn-small', 'aria-expanded': 'false' }, t('Zuschneiden'));
+    cropBtn.addEventListener('click', () => {
+      if (!cropPanel.hidden) { cropPanel.hidden = true; cropBtn.setAttribute('aria-expanded', 'false'); return; }
+      clear(cropPanel);
+      const c = cropper(source, prepared.crop);
+      add(cropPanel, c.el, h('div', { class: 'form-actions' },
+        actionButton(t('Zuschnitt übernehmen'), async () => {
+          try {
+            prepared = await P.prepareFromSource(source, c.value());
+            showPrepared();
+            cropPanel.hidden = true;
+            cropBtn.setAttribute('aria-expanded', 'false');
+            toast(t('Zuschnitt übernommen.'), 'ok');
+            cap.focus();
+          } catch (e) { toast(e.message, 'error'); }
+        }, { cls: 'btn btn-primary btn-small' }),
+        h('button', { type: 'button', class: 'btn btn-ghost btn-small', on: { click: () => { cropPanel.hidden = true; cropBtn.setAttribute('aria-expanded', 'false'); cropBtn.focus(); } } }, t('Abbrechen'))));
+      cropPanel.hidden = false;
+      cropBtn.setAttribute('aria-expanded', 'true');
+      c.focus();
+    });
     clear(stage);
     add(stage,
-      h('div', { class: 'album-preview' }, h('img', { src: url, alt: t('Vorschau') }),
+      h('div', { class: 'album-preview' }, preview,
         h('div', null,
           h('div', { class: 'field' }, h('label', { for: 'album-caption' }, t('Bildunterschrift (optional)')), cap),
-          h('p', { class: 'hint' }, t('{kb} KB, {w} × {h} Pixel. Ort, Kamera und Aufnahmedaten sind entfernt.', { kb: Math.round(prepared.full.bytes.length / 1024), w: prepared.full.w, h: prepared.full.h })),
+          info,
           h('div', { class: 'form-actions' },
             actionButton(t('Hochladen'), async () => {
               try {
@@ -241,7 +330,9 @@ export function personAlbumCard({ pctx, data, name }) {
                 await render();
               } catch (e) { toast(e.message, 'error'); }
             }, { cls: 'btn btn-primary' }),
-            h('button', { type: 'button', class: 'btn btn-ghost', on: { click: done } }, t('Abbrechen'))))));
+            cropBtn,
+            h('button', { type: 'button', class: 'btn btn-ghost', on: { click: done } }, t('Abbrechen'))))),
+      cropPanel);
     cap.focus();
   });
 
@@ -285,6 +376,7 @@ export function adminAlbumCard({ ctx, data, reload }) {
         eventDate: round.eventDate, getFull,
         canDelete: () => true,
         onDelete: async (it) => { await P.deleteAdmin(ctx, it.id); toast(t('Foto gelöscht.'), 'ok'); await render(); },
+        isNew: trackNew(seenKey(round.id, 'admin'), items, list).isNew,
       }) : null);
   };
 

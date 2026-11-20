@@ -6,6 +6,7 @@ import { codeHash, createCode } from './codes.mjs';
 import { openSettings, openStatus, saveOpenSettings, describeOpen, OPEN_MAX } from './open-creation.mjs';
 import { donationSettings, saveDonation, describeDonation, DonationError, DONATION_LABEL } from './donation.mjs';
 import { ideasSettings, saveIdeas, describeIdeas, IdeasError } from './ideas.mjs';
+import { albumLimits, saveAlbumLimits, resetAlbumLimits, describeAlbumLimits, AlbumLimitsError } from './album-limits.mjs';
 import { readFileSync } from 'node:fs';
 import { all, run } from './db.mjs';
 import qrcode from '../public/js/vendor/qrcode.mjs';
@@ -230,6 +231,44 @@ export function donationCommand(db, config, args) {
       break;
     default:
       out('Verwendung:\n  zw donation status\n  zw donation set --url https://… [--label "Linktext"] [--note "kurzer Hinweis"] [--rounds on|off]\n  zw donation on | off');
+  }
+}
+
+// ------------------------------------------------------------------ zw album
+
+/** Grenzen des Adventsalbums: zw album [status] | set [--photos N] [--mb N] | reset */
+export function albumCommand(db, config, args) {
+  const show = () => out(`Adventsalbum: ${config.album.enabled ? 'an' : 'serverweit aus (config.json)'} – ${describeAlbumLimits(albumLimits(db, config))}`);
+  switch (args[0]) {
+    case 'set': {
+      const cur = albumLimits(db, config);
+      const num = (name, def) => {
+        const v = opt(args, name, null);
+        if (v === null) return def;
+        if (!/^\d+$/.test(String(v))) throw new CliError(`--${name}: ganze Zahl erwartet`);
+        return Number(v);
+      };
+      try {
+        saveAlbumLimits(db, { personPhotos: num('photos', cur.personPhotos), roundMb: num('mb', cur.roundMb) });
+      } catch (e) {
+        if (e instanceof AlbumLimitsError) throw new CliError(e.message);
+        throw e;
+      }
+      new Admin(db, config.server_key_raw).log(nowSec(), 'Adventsalbum', `${describeAlbumLimits(albumLimits(db, config))} (Kommandozeile)`);
+      show();
+      break;
+    }
+    case 'reset':
+      resetAlbumLimits(db);
+      new Admin(db, config.server_key_raw).log(nowSec(), 'Adventsalbum', `${describeAlbumLimits(albumLimits(db, config))} (Kommandozeile)`);
+      show();
+      break;
+    case 'status':
+    case undefined:
+      show();
+      break;
+    default:
+      out('Verwendung:\n  zw album status\n  zw album set [--photos 20] [--mb 60]   (Fotos je Person 1–50, Speicher je Runde 1–500 MB)\n  zw album reset                        (wieder die Werte aus config.json)');
   }
 }
 

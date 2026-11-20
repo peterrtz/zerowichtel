@@ -1,5 +1,6 @@
 import { donationCard } from '../lib/donation.js';
 import { adminAlbumCard } from './album.js';
+import { navTarget, sectionNav } from './section-nav.js';
 import { h, add, field, toast, errorBox, actionButton } from '../lib/dom.js';
 import * as M from '../lib/model.js';
 import { saveLink, removeLink, findLink, updateLink, listLinks } from '../lib/store.js';
@@ -370,20 +371,21 @@ export async function renderAdmin(root, ctx) {
   mount(root, page(
     roundHeader(round, meta, chip(t('Verwaltung'), 'admin')),
     justCreated ? notice(t('Die Runde ist angelegt. Sichere jetzt den Admin-Link. Danach trag dich selbst ein, falls du mitwichtelst, und lade die Teilnehmenden ein.'), 'ok') : null,
-    saveSection,
-    checklistCard(checklist, round),
+    navTarget(saveSection, 'zugang'),
+    navTarget(checklistCard(checklist, round), 'checkliste'),
     meta.greeting ? card(null, md(meta.greeting)) : null,
-    card(null, factList(round, meta), calendarButton({ round, meta, role: 'admin', url: `${linkBase()}/` })),
-    round.mode === 'schrott' ? schrottCard({ meta, round, packages: counts.dabei, storageKey: round.id }) : null,
-    peopleCard,
-    open ? groupLinkCard({ ctx, data, meta, reload }) : null,
-    await adminDrawSection({ ctx, data, reload }),
-    adminQuestionsCard({ ctx, data, reload }),
-    adminAlbumCard({ ctx, data, reload }),
-    editCard,
+    navTarget(card(null, factList(round, meta), calendarButton({ round, meta, role: 'admin', url: `${linkBase()}/` })), 'infos'),
+    round.mode === 'schrott' ? navTarget(schrottCard({ meta, round, packages: counts.dabei, storageKey: round.id }), 'schrott') : null,
+    navTarget(peopleCard, 'teilnehmende'),
+    open ? navTarget(groupLinkCard({ ctx, data, meta, reload }), 'gruppenlink') : null,
+    navTarget(await adminDrawSection({ ctx, data, reload }), 'ziehung'),
+    navTarget(adminQuestionsCard({ ctx, data, reload }), 'fragen'),
+    navTarget(adminAlbumCard({ ctx, data, reload }), 'album'),
+    navTarget(editCard, 'bearbeiten'),
     donationCard(card, { inRound: true }),
-    dangerCard,
+    navTarget(dangerCard, 'loeschen'),
   ));
+  sectionNav(root);
 }
 
 function adminMailForm(ctx) {
