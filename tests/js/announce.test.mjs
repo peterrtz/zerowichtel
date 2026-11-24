@@ -5,6 +5,7 @@ import * as C from '../../public/js/lib/crypto.js';
 import { validateAnnouncement, openAnnouncements, readAnnSeen, writeAnnSeen, ANNOUNCE_MAX } from '../../public/js/lib/announce.js';
 import { openTodos } from '../../public/js/views/person.js';
 import { openQuestions, newAnswers } from '../../public/js/views/person-draw.js';
+import { anonSlot } from '../../public/js/lib/questions.js';
 
 const DAY = 86400;
 const now = 1_800_000_000;
@@ -76,4 +77,54 @@ test('Wichtelpost: offene Fragen = Nachrichten des Wichtels nach der letzten Ant
   assert.equal(openQuestions([m(1, 'frage', 'reveal')]).length, 0, 'Auflösung ist keine Frage');
   assert.deepEqual(newAnswers([m(1, 'frage'), m(2, 'antwort'), m(5, 'antwort', 'thanks')], 2).map((x) => x.id), [5]);
   assert.equal(newAnswers([m(2, 'antwort')], 0).length, 1);
+});
+
+test('Anonyme Rückfragen (2.14): abgeleitete Nummern – gleich auf jedem Gerät, verschieden je Nummer, Runde und Person', async () => {
+  const secret = C.newKey();
+  const p = { roundId: 'r1', secret };
+  const a0 = await anonSlot(p, 0);
+  assert.deepEqual(await anonSlot({ ...p, pid: 'egal', accessToken: 'neu' }, 0), a0, 'Zugangstoken (Wiederherstellung) ändert nichts');
+  assert.ok(C.isId(a0.id) && C.isId(a0.token) && C.isKey(a0.rk), 'Formate wie zufällige Werte');
+  const a1 = await anonSlot(p, 1);
+  const other = await anonSlot({ roundId: 'r2', secret }, 0);
+  const stranger = await anonSlot({ roundId: 'r1', secret: C.newKey() }, 0);
+  const all = [a0, a1, other, stranger].flatMap((x) => [x.id, x.token, x.rk]);
+  assert.equal(new Set(all).size, all.length, 'keine Wiederholung zwischen Nummern, Runden, Personen und Feldern');
+});
+
+test('Anonyme Rückfrage (2.14): nimmt die Nummer nach der höchsten belegten; bei „gibt es schon“ die nächste', async () => {
+  const { askQuestion } = await import('../../public/js/lib/questions.js');
+  const { configure } = await import('../../public/js/lib/api.js');
+  configure({ apiBase: 'https://zw.test/api' });
+  const pctx = { roundId: 'r1', pid: 'p1', secret: C.newKey(), kRound: C.newKey() };
+  const slots = await Promise.all([0, 1, 2, 3, 4].map((n) => anonSlot(pctx, n)));
+  const kp = await C.keypairFromSecret(C.newKey());
+  const round = { id: 'r1', questions: { mode: 2, pub: kp.publicB64 } };
+  const posted = [];
+  let failFirst = true;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    const json = (status, data) => ({ status, ok: status < 300, json: async () => data });
+    if (url.endsWith('/questions/threads')) {
+      // Nummer 0 aktiv, Nummer 2 von der Organisator:in gelöscht (bleibt belegt), 1 nie benutzt
+      return json(200, { threads: [{ id: slots[0].id, ownCt: null, aCt: null, day: 1 }, { id: slots[2].id, deleted: true }] });
+    }
+    if (url.endsWith('/questions/anon')) {
+      posted.push(body.id);
+      assert.equal(body.threadHash, await C.tokenHash(slots.find((s) => s.id === body.id).token));
+      const s = slots.find((x) => x.id === body.id);
+      assert.deepEqual(await C.decryptJson(s.rk, body.ownCt, ['qownanon', 'r1', s.id]), { v: 1, text: 'Wann ist Bescherung?' });
+      if (failFirst) { failFirst = false; return json(409, { error: 'exists', message: 'Diese Frage gibt es schon.' }); }
+      return json(201, { id: body.id });
+    }
+    throw new Error(`unerwartet: ${url}`);
+  };
+  try {
+    const res = await askQuestion(pctx, round, 'Wann ist Bescherung?', true);
+    assert.deepEqual(posted, [slots[3].id, slots[4].id], 'nach der gelöschten Nummer 2; bei Kollision Nummer 4');
+    assert.equal(res.id, slots[4].id);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

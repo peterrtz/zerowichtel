@@ -5,8 +5,11 @@
 //   Frage:   für die Organisator:in versiegelt {text, rk, anon}; rk = zufälliger Antwortschlüssel.
 //   Antwort: mit rk verschlüsselt – lesen können nur Organisator:in und fragende Person.
 //   Mit Namen: eigene Kopie {text, rk} für den eigenen Schlüssel versiegelt (auf jedem Gerät der Person lesbar).
-//   Anonym:  gesendet mit einem Token, das alle in der Runde aus K_round ableiten (kein Personen-Zugang);
-//            Abholtoken, rk und Text liegen NUR im lokalen Speicher dieses Geräts.
+//   Anonym:  gesendet mit einem Token, das alle in der Runde aus K_round ableiten (kein Personen-Zugang).
+//            Ab 2.14 sind Frage-ID, Abholtoken und rk aus dem eigenen Schlüssel abgeleitet (Nummer 0, 1, 2 …); der
+//            Fragetext liegt zusätzlich mit rk verschlüsselt auf dem Server. So findet jedes eigene Gerät (zweites
+//            Gerät, Wiederherstellung) die Fragen wieder – abgeholt ohne Personen-Zugang, der Server sieht nur
+//            zufällig wirkende IDs. Fragen aus 2.9–2.13 (zufällige Werte) liegen weiter nur im lokalen Speicher.
 import * as C from './crypto.js';
 import { api } from './api.js';
 import { t } from './i18n.js';
@@ -19,7 +22,10 @@ export const Q_AAD = {
   own: (r, id) => ['qown', r, id],
   a: (r, id) => ['qa', r, id],
   orgEmail: (r) => ['orgemail', r],
+  ownAnon: (r, id) => ['qownanon', r, id],
 };
+/** Höchstzahl anonymer Fragen je Person (abgeleitete Nummern 0 … 29); passt zur Obergrenze des Servers. */
+export const ANON_SLOTS = 30;
 
 const chars = (s) => [...s].length;
 const authP = (p) => `p.${p.pid}.${p.accessToken}`;
@@ -31,6 +37,25 @@ export async function organizerKeypair(kAdmin) {
 
 export async function anonToken(kRound) {
   return C.b64uEncode(await C.hkdf(C.b64uDecode(kRound), 'questions-anon', 16));
+}
+
+/** Abgeleitete Werte der n-ten anonymen Frage einer Person: { id, token, rk }. Nur mit dem eigenen Schlüssel berechenbar. */
+export async function anonSlot(pctx, n) {
+  const base = await C.hkdf(C.b64uDecode(pctx.secret), `anon-questions|${pctx.roundId}`, 32);
+  const [id, token, rk] = await Promise.all([
+    C.hkdf(base, `id|${n}`, 16), C.hkdf(base, `token|${n}`, 16), C.hkdf(base, `rk|${n}`, 32),
+  ]);
+  return { n, id: C.b64uEncode(id), token: C.b64uEncode(token), rk: C.b64uEncode(rk) };
+}
+
+async function anonSlots(pctx) {
+  return Promise.all(Array.from({ length: ANON_SLOTS }, (_, n) => anonSlot(pctx, n)));
+}
+
+/** Eigene abgeleitete anonyme Fragen vom Server: Map id → Eintrag ({ deleted } bei gelöschten). */
+async function fetchAnonSlots(slots) {
+  const { threads } = await api('POST', '/questions/threads', { body: { threads: slots.map((s) => ({ id: s.id, token: s.token })) } });
+  return new Map(threads.map((x) => [x.id, x]));
 }
 
 /** Prüft den Text einer Frage oder Antwort; gibt den bereinigten Text zurück oder wirft. */
@@ -113,25 +138,42 @@ function saveStore(list, storage) {
 }
 
 /** Stellt eine Frage. anon nur, wenn die Runde das erlaubt (mode 2). Gibt { id, stored } zurück. */
-export async function askQuestion(pctx, round, text, anon, storage = globalThis.localStorage) {
+export async function askQuestion(pctx, round, text, anon) {
   const v = validateQuestionText(text);
   const mode = round.questions?.mode ?? 0;
   if (mode < 1 || !round.questions.pub) throw new Error(t('Rückfragen sind in dieser Runde nicht freigegeben.'));
   if (anon && mode !== 2) throw new Error(t('Anonyme Rückfragen sind in dieser Runde nicht freigegeben.'));
+  if (anon) return askAnon(pctx, round, v);
   const id = C.newId();
   const rk = C.newKey();
-  const qCt = await C.sealTo(round.questions.pub, { v: 1, text: v, rk, anon: !!anon }, Q_AAD.q(round.id, id));
-  if (!anon) {
-    const me = await C.keypairFromSecret(pctx.secret);
-    const ownCt = await C.sealTo(me.publicB64, { v: 1, text: v, rk }, Q_AAD.own(round.id, id));
-    await api('POST', '/me/questions', { auth: authP(pctx), body: { id, qCt, ownCt } });
-    return { id, stored: true };
+  const qCt = await C.sealTo(round.questions.pub, { v: 1, text: v, rk, anon: false }, Q_AAD.q(round.id, id));
+  const me = await C.keypairFromSecret(pctx.secret);
+  const ownCt = await C.sealTo(me.publicB64, { v: 1, text: v, rk }, Q_AAD.own(round.id, id));
+  await api('POST', '/me/questions', { auth: authP(pctx), body: { id, qCt, ownCt } });
+  return { id, stored: true };
+}
+
+/**
+ * Anonyme Frage (2.14): nächste freie abgeleitete Nummer nach der höchsten belegten (gelöschte bleiben belegt).
+ * Fragen zwei eigene Geräte gleichzeitig, meldet der Server „gibt es schon“ – dann die nächste Nummer.
+ */
+async function askAnon(pctx, round, text) {
+  const slots = await anonSlots(pctx);
+  const found = await fetchAnonSlots(slots);
+  let next = slots.reduce((m, s) => (found.has(s.id) ? s.n + 1 : m), 0);
+  const auth = `q.${round.id}.${await anonToken(pctx.kRound)}`;
+  for (let tries = 0; tries < 3 && next < ANON_SLOTS; tries++, next++) {
+    const s = slots[next];
+    const qCt = await C.sealTo(round.questions.pub, { v: 1, text, rk: s.rk, anon: true }, Q_AAD.q(round.id, s.id));
+    const ownCt = await C.encryptJson(s.rk, { v: 1, text }, Q_AAD.ownAnon(round.id, s.id));
+    try {
+      await api('POST', '/questions/anon', { auth, body: { id: s.id, qCt, ownCt, threadHash: await C.tokenHash(s.token) } });
+      return { id: s.id, stored: true };
+    } catch (e) {
+      if (e.code !== 'exists') throw e;
+    }
   }
-  const token = C.newId();
-  await api('POST', '/questions/anon', { auth: `q.${round.id}.${await anonToken(pctx.kRound)}`, body: { id, qCt, threadHash: await C.tokenHash(token) } });
-  const list = loadStore(storage);
-  list.push({ roundId: round.id, pid: pctx.pid, id, token, rk, text: v, at: Math.floor(Date.now() / 1000) });
-  return { id, stored: saveStore(list, storage) };
+  throw new Error(t('Du hast in dieser Runde schon die Höchstzahl anonymer Rückfragen gestellt.'));
 }
 
 /** Eigene Fragen: mit Namen vom Server, anonyme aus dem lokalen Speicher (Antwort per Abholtoken). */
@@ -146,6 +188,19 @@ export async function loadMyQuestions(pctx, round, storage = globalThis.localSto
       out.push({ id: q.id, anon: false, text: own.text, answer, day: q.day, answerDay: q.answerDay });
     } catch { /* unlesbar (z. B. neu eingeladen) – überspringen */ }
   }
+  // Abgeleitete anonyme Fragen (2.14): auf jedem eigenen Gerät
+  const slots = await anonSlots(pctx);
+  const found = await fetchAnonSlots(slots);
+  for (const s of slots) {
+    const d = found.get(s.id);
+    if (!d || d.deleted) continue;
+    try {
+      const own = d.ownCt ? await C.decryptJson(s.rk, d.ownCt, Q_AAD.ownAnon(round.id, s.id)) : null;
+      const answer = d.aCt ? (await C.decryptJson(s.rk, d.aCt, Q_AAD.a(round.id, s.id))).text : null;
+      out.push({ id: s.id, anon: true, text: own ? String(own.text) : null, answer, day: d.day, answerDay: d.answerDay });
+    } catch { /* manipuliert – überspringen */ }
+  }
+  // Ältere anonyme Fragen (bis 2.13): nur im lokalen Speicher dieses Geräts
   const list = loadStore(storage);
   const keep = [];
   for (const x of list) {

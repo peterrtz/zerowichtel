@@ -284,5 +284,8 @@ const STEPS = [
     'ALTER TABLE rounds ADD COLUMN ann_mail_req INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE rounds ADD COLUMN ann_mail_done INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE rounds ADD COLUMN ann_mail_day INTEGER NOT NULL DEFAULT -1',
+    // Anonyme Rückfragen auf allen eigenen Geräten: own_ct = Fragetext mit dem Antwortschlüssel; gelöschte anonyme
+    // Fragen bleiben als leerer Platzhalter (deleted = 1, ohne Inhalt), damit ihre Nummer nicht neu vergeben wird.
+    'ALTER TABLE questions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0',
   ],
 ];

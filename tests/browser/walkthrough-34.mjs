@@ -224,6 +224,15 @@ try {
     if (await g.$('.card-reveal .msg .chip')) problems.push('Antwort nach dem Lesen weiter „neu“');
   });
 
+  await step('Wichtelpost auf Bens zweitem Gerät: Frage und Antwort da, nichts offen', async () => {
+    const second = await newPage();
+    await second.goto(pages.Ben.url());
+    await waitText(second, 'Dunkelgrün!');
+    if (!(await second.evaluate(() => document.body.textContent.includes('Welche Farbe magst du?')))) problems.push('Frage fehlt auf dem zweiten Gerät');
+    if (await second.$('.card-post.card-attention')) problems.push('zweites Gerät zeigt die beantwortete Frage als offen');
+    await second.close();
+  });
+
   await step('Zugang gilt als gesichert, wenn der Link von außen geöffnet oder der Code eingelöst wird', async () => {
     const link = pages.Cleo.url();
     const other = await newPage();

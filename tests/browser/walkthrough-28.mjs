@@ -186,20 +186,29 @@ try {
     await axe(admin, 'Admin: Rückfragen');
   });
 
-  await step('Antworten kommen an; die anonyme nur auf Benedikts Gerät', async () => {
+  await step('Antworten kommen an; die anonyme auf allen Geräten von Benedikt (2.14), bei Anna nicht', async () => {
     await pages.Anna.reload();
     await waitText(pages.Anna, 'Über die Karte Wichtelpost, ganz anonym.');
     await pages.Benedikt.reload();
     await waitText(pages.Benedikt, 'Gutscheine sind völlig in Ordnung.');
     if (await pages.Anna.evaluate((x) => document.body.textContent.includes(x), QB)) problems.push('Anna sieht Benedikts Frage');
-    // Benedikts Link in einem anderen Browser: Zugang ja, anonyme Frage nein
+    // 2.14: Benedikts Link in einem anderen Browser (zweites Gerät): anonyme Frage samt Antwort sichtbar
     const url = pages.Benedikt.url();
     const other = await newPage();
     await other.goto(url);
     await waitText(other, 'Hallo Benedikt!');
-    await waitText(other, 'Frage an die Organisator:in');
-    await new Promise((r) => setTimeout(r, 800));
-    if (await other.evaluate((x) => document.body.textContent.includes(x), QB)) problems.push('Anonyme Frage auf einem anderen Gerät sichtbar');
+    await waitText(other, 'Gutscheine sind völlig in Ordnung.');
+    if (!(await other.evaluate((x) => document.body.textContent.includes(x), QB))) problems.push('Anonyme Frage auf dem zweiten Gerät fehlt');
+    // … und auch nach dem Einlösen des Wiederherstellungscodes auf einem dritten Gerät
+    const code = await pages.Benedikt.evaluate(() => document.querySelector('.recovery-code')?.textContent ?? null);
+    if (code) {
+      const third = await newPage();
+      await third.goto(`${srv.base}/#wiederherstellen/${code.replace(/-/g, '')}`);
+      await clickText(third, 'Wiederherstellen');
+      await waitText(third, 'Gutscheine sind völlig in Ordnung.');
+      if (!(await third.evaluate((x) => document.body.textContent.includes(x), QB))) problems.push('Anonyme Frage nach Wiederherstellung fehlt');
+      pages.Benedikt = third; // die bisherigen Geräte sind jetzt abgemeldet; weiter mit dem neuen
+    } else problems.push('Wiederherstellungscode auf Benedikts Seite nicht gefunden');
     await other.close();
   });
 
@@ -208,7 +217,8 @@ try {
     const raw = Buffer.concat([readFileSync(srv.dbPath), existsSync(`${srv.dbPath}-wal`) ? readFileSync(`${srv.dbPath}-wal`) : Buffer.alloc(0)]);
     for (const s of ['Wichtelpost genau', 'Gutscheine', 'völlig in Ordnung', 'Büroweihnacht']) if (raw.includes(Buffer.from(s))) problems.push(`Klartext in der Datenbank: ${s}`);
     const rows = JSON.parse(srv.sql('SELECT pid IS NULL AS anon, own_ct IS NULL AS noown, thread_hash IS NULL AS nothread FROM questions ORDER BY rowid'));
-    if (JSON.stringify(rows) !== JSON.stringify([{ anon: 0, noown: 0, nothread: 1 }, { anon: 1, noown: 1, nothread: 0 }])) problems.push(`Fragen-Zeilen: ${JSON.stringify(rows)}`);
+    // 2.14: auch die anonyme Frage hat eine eigene Kopie (own_ct, mit dem Antwortschlüssel) – ohne Personenbezug
+    if (JSON.stringify(rows) !== JSON.stringify([{ anon: 0, noown: 0, nothread: 1 }, { anon: 1, noown: 0, nothread: 0 }])) problems.push(`Fragen-Zeilen: ${JSON.stringify(rows)}`);
   });
 
   await step('Auslosen; Zeitleiste zeigt bei „Zusagen“ den Tag der Auslosung', async () => {

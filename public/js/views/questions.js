@@ -50,11 +50,10 @@ export function personQuestionsCard({ pctx, round }) {
   const anon = h('input', { type: 'checkbox', id: 'q-anon' });
   const send = actionButton(t('Frage senden'), async () => {
     try {
-      const { stored } = await Q.askQuestion(pctx, round, text.value, mode === 2 && anon.checked);
+      await Q.askQuestion(pctx, round, text.value, mode === 2 && anon.checked);
       text.value = '';
       text.dispatchEvent(new Event('input'));
       toast(t('Frage gesendet.'), 'ok');
-      if (!stored) toast(t('Dieser Browser speichert nichts – die Antwort auf deine anonyme Frage kannst du hier später nicht abrufen.'), 'warn');
       await renderList();
     } catch (e) {
       toast(e.message, 'error');
@@ -73,7 +72,7 @@ export function personQuestionsCard({ pctx, round }) {
     if (!qs.length) return;
     add(list, h('h3', null, t('Deine Fragen')), h('ul', { class: 'q-items' }, qs.map((q) => h('li', { class: 'q-item' },
       h('p', { class: 'q-meta' }, q.anon ? chip(t('anonym'), 'muted') : null, q.day ? ` ${dayDate(q.day)}` : ''),
-      h('p', { class: 'q-text' }, q.text),
+      h('p', { class: 'q-text' }, q.text ?? t('(Text nicht lesbar)')),
       q.answer
         ? h('div', { class: 'q-answer' }, h('strong', null, t('Antwort:')), ' ', q.answer)
         : h('p', { class: 'hint' }, q.unavailable ? t('Gerade nicht abrufbar.') : t('Noch keine Antwort.'))))));
@@ -86,7 +85,7 @@ export function personQuestionsCard({ pctx, round }) {
     mode === 2
       ? h('div', { class: 'field' },
         h('label', { class: 'check', for: 'q-anon' }, anon, ' ', t('Anonym fragen')),
-        h('p', { class: 'hint' }, t('Die Organisator:in sieht dann nicht, von wem die Frage kommt. Die Antwort siehst du nur in diesem Browser auf diesem Gerät. In kleinen Runden verraten Schreibstil und Uhrzeit trotzdem manchmal, wer gefragt hat.')))
+        h('p', { class: 'hint' }, t('Die Organisator:in sieht dann nicht, von wem die Frage kommt. Frage und Antwort siehst du auf allen Geräten, auf denen deine Runde geöffnet ist. In kleinen Runden verraten Schreibstil und Uhrzeit trotzdem manchmal, wer gefragt hat.')))
       : null,
     h('div', { class: 'form-actions' }, send),
     list);

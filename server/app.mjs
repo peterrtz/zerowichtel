@@ -218,12 +218,14 @@ export class App {
       r('POST', '/me/questions', (q) => this.askNamed(q)),
       r('POST', '/questions/anon', (q) => this.askAnon(q)),
       r('GET', '/questions/thread', (q) => this.anonThread(q)),
+      r('POST', '/questions/threads', (q) => this.anonThreads(q)),
     ];
   }
 
   #route(req) {
     const path = req.path.replace(/\/+$/, '') || '/';
-    this.limiter.hit(req.method === 'GET' ? 'read' : 'write', req.ip, this.now());
+    // Sammelabruf anonymer Fragen (2.14) ist ein Lesezugriff, nur per POST wegen der Tokens im Körper
+    this.limiter.hit(req.method === 'GET' || req.path === '/questions/threads' ? 'read' : 'write', req.ip, this.now());
 
     const adm = /^\/admin\/([a-z2-7]{26})(\/[a-z0-9/]*)?$/.exec(path);
     if (adm) return this.adminRoute(req, adm[1], adm[2] ?? '');
@@ -458,7 +460,7 @@ export class App {
   adminQuestions(req, roundId) {
     const round = this.adminRound(req, roundId);
     return json({
-      questions: all(this.db, 'SELECT id, pid, q_ct, a_ct, day, answer_day FROM questions WHERE round_id = ? ORDER BY rowid', round.id)
+      questions: all(this.db, 'SELECT id, pid, q_ct, a_ct, day, answer_day FROM questions WHERE round_id = ? AND deleted = 0 ORDER BY rowid', round.id)
         .map((q) => ({ id: q.id, pid: q.pid, anon: q.pid === null, qCt: q.q_ct, aCt: q.a_ct, day: q.day, answerDay: q.answer_day })),
     });
   }
@@ -468,14 +470,19 @@ export class App {
     const aCt = V.ct(req.body, 'aCt', L.ANSWER);
     const day = Math.floor(this.now() / DAY);
     // notified = 0: geänderte Antwort meldet sich erneut (nur bei Fragen mit Namen und E-Mail)
-    const { changes } = run(this.db, 'UPDATE questions SET a_ct = ?, answer_day = ?, notified = 0 WHERE id = ? AND round_id = ?', aCt, day, qid, round.id);
+    const { changes } = run(this.db, 'UPDATE questions SET a_ct = ?, answer_day = ?, notified = 0 WHERE id = ? AND round_id = ? AND deleted = 0', aCt, day, qid, round.id);
     if (changes !== 1) notFound();
     return noContent();
   }
 
   deleteQuestion(req, roundId, qid) {
     const round = this.adminRound(req, roundId);
-    const { changes } = run(this.db, 'DELETE FROM questions WHERE id = ? AND round_id = ?', qid, round.id);
+    // Mit Namen: ganz löschen. Anonym (2.14): Inhalt löschen, Platzhalter behalten – sonst vergäbe das Gerät der
+    // fragenden Person die abgeleitete Nummer neu, und eine neue Frage hätte dieselbe ID wie die gelöschte.
+    let { changes } = run(this.db, 'DELETE FROM questions WHERE id = ? AND round_id = ? AND pid IS NOT NULL', qid, round.id);
+    if (changes === 0) {
+      ({ changes } = run(this.db, "UPDATE questions SET q_ct = '', a_ct = NULL, own_ct = NULL, answer_day = NULL, deleted = 1 WHERE id = ? AND round_id = ? AND pid IS NULL AND deleted = 0", qid, round.id));
+    }
     if (changes !== 1) notFound();
     return noContent();
   }
@@ -521,16 +528,17 @@ export class App {
     const id = V.id(b, 'id');
     const qCt = V.ct(b, 'qCt', L.QUESTION);
     const threadHash = V.hash(b, 'threadHash');
+    const ownCt = V.ct(b, 'ownCt', L.OWN, true); // 2.14: Fragetext mit dem Antwortschlüssel (für weitere eigene Geräte)
     const now = this.now();
     const day = Math.floor(now / DAY);
     this.limiter.hit('question_anon', req.ip, now);
     if (value(this.db, 'SELECT COUNT(*) FROM questions WHERE round_id = ? AND pid IS NULL AND day = ?', round.id, day) >= Q_ANON_ROUND_DAY) {
       throw new HttpError(429, 'questions_today', 'Heute sind in dieser Runde schon sehr viele anonyme Rückfragen eingegangen.');
     }
-    if (value(this.db, 'SELECT COUNT(*) FROM questions WHERE round_id = ? AND pid IS NULL', round.id) >= Q_OPEN_MAX) {
+    if (value(this.db, 'SELECT COUNT(*) FROM questions WHERE round_id = ? AND pid IS NULL AND deleted = 0', round.id) >= Q_OPEN_MAX) {
       throw new HttpError(409, 'questions_full', 'Es sind schon sehr viele anonyme Rückfragen gespeichert. Bitte die Organisator:in, alte zu löschen.');
     }
-    this.insertQuestion(() => run(this.db, 'INSERT INTO questions (id, round_id, pid, thread_hash, q_ct, day) VALUES (?, ?, NULL, ?, ?, ?)', id, round.id, threadHash, qCt, day));
+    this.insertQuestion(() => run(this.db, 'INSERT INTO questions (id, round_id, pid, thread_hash, q_ct, own_ct, day) VALUES (?, ?, NULL, ?, ?, ?, ?)', id, round.id, threadHash, qCt, ownCt, day));
     return json({ id }, 201);
   }
 
@@ -547,8 +555,30 @@ export class App {
   anonThread(req) {
     const [, qid, token] = this.authParts(req, 'k');
     const q = one(this.db, 'SELECT * FROM questions WHERE id = ? AND pid IS NULL', qid);
-    if (!q || !safeEqual(q.thread_hash, sha256(token))) notFound();
+    if (!q || q.deleted || !safeEqual(q.thread_hash, sha256(token))) notFound();
     return json({ id: q.id, aCt: q.a_ct, day: q.day, answerDay: q.answer_day });
+  }
+
+  /**
+   * Mehrere anonyme Fragen auf einmal abholen (2.14): { threads: [{ id, token }] }, höchstens 30. Jedes Gerät der
+   * Person leitet IDs und Abholtokens aus ihrem Schlüssel ab und fragt hier ohne Personen-Zugang nach. Zurück kommen
+   * nur Treffer mit passendem Token; gelöschte als { id, deleted: true } (Nummer belegt, kein Inhalt).
+   */
+  anonThreads(req) {
+    const list = get(req.body, 'threads');
+    if (!Array.isArray(list) || list.length > Q_OPEN_MAX) fail('threads');
+    const out = [];
+    const seen = new Set();
+    for (const x of list) {
+      const id = V.id(x, 'id');
+      const token = V.id(x, 'token');
+      if (seen.has(id)) fail('threads');
+      seen.add(id);
+      const q = one(this.db, 'SELECT * FROM questions WHERE id = ? AND pid IS NULL', id);
+      if (!q || !safeEqual(q.thread_hash, sha256(token))) continue;
+      out.push(q.deleted ? { id: q.id, deleted: true } : { id: q.id, ownCt: q.own_ct, aCt: q.a_ct, day: q.day, answerDay: q.answer_day });
+    }
+    return json({ threads: out });
   }
 
   // ------------------------------------------------------------------ Nachricht an alle (2.14)

@@ -2044,6 +2044,57 @@ CREATE INDEX messages_mailbox ON messages(mailbox_id);
 CREATE TABLE rate_limits (bucket TEXT PRIMARY KEY, window_start INTEGER NOT NULL, hits INTEGER NOT NULL);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`;
 
+test('2.14: Anonyme Rückfragen auf allen Geräten – Sammelabruf, eigene Kopie, Platzhalter nach dem Löschen', async () => {
+  const e = await Env.make();
+  const [r, people] = await drawnRound(e);
+  const pub = b64u(crypto.randomBytes(32));
+  const anonTok = nid();
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/settings`, { mode: 2, pub, anonHash: h(anonTok) }, r.admin));
+  const ask = (id, thread, extra = {}, ip = '10.7.0.1') => e.call('POST', '/questions/anon', { id, qCt: ct(300), threadHash: h(thread), ...extra }, `q.${r.id}.${anonTok}`, ip);
+  const [a, ta, own] = [nid(), nid(), ct(120)];
+  const [b, tb] = [nid(), nid()];
+  eq(201, (await ask(a, ta, { ownCt: own }))[0]);
+  eq(201, (await ask(b, tb))[0], 'ohne eigene Kopie wie bis 2.13');
+  eq(400, (await ask(nid(), nid(), { ownCt: 'klartext' }))[0], 'eigene Kopie nur als Chiffretext');
+  eq(409, (await ask(a, nid()))[0], 'gleiche ID (zweites Gerät fragt gleichzeitig) → exists');
+  const threads = (list) => e.call('POST', '/questions/threads', { threads: list });
+  // Nur Treffer mit passendem Token; ohne Personen-Zugang
+  let [s, d] = await threads([{ id: a, token: ta }, { id: b, token: nid() }, { id: nid(), token: nid() }]);
+  eq(200, s);
+  eq([{ id: a, ownCt: own, aCt: null, day: d.threads[0]?.day, answerDay: null }], d.threads);
+  // Fragen mit Namen sind hier nicht erreichbar
+  const named = nid();
+  eq(201, (await e.call('POST', '/me/questions', { id: named, qCt: ct(), ownCt: ct() }, people[0].auth))[0]);
+  [, d] = await threads([{ id: named, token: nid() }]);
+  eq([], d.threads);
+  // Formfehler und Obergrenze
+  eq(400, await e.status('POST', '/questions/threads', { threads: 'x' }));
+  eq(400, await e.status('POST', '/questions/threads', {}));
+  eq(400, await e.status('POST', '/questions/threads', { threads: [{ id: a }] }));
+  eq(400, await e.status('POST', '/questions/threads', { threads: [{ id: a, token: ta }, { id: a, token: ta }] }), 'doppelte ID');
+  eq(400, await e.status('POST', '/questions/threads', { threads: Array.from({ length: 31 }, () => ({ id: nid(), token: nid() })) }));
+  eq(200, await e.status('POST', '/questions/threads', { threads: Array.from({ length: 30 }, () => ({ id: nid(), token: nid() })) }));
+  // Antwort kommt beim Sammelabruf an
+  const ans = ct(200);
+  eq(204, await e.status('PUT', `/rounds/${r.id}/questions/${a}/answer`, { aCt: ans }, r.admin));
+  [, d] = await threads([{ id: a, token: ta }]);
+  eq(ans, d.threads[0].aCt);
+  // Löschen durch die Organisator:in: Platzhalter ohne Inhalt, Nummer bleibt belegt
+  eq(204, await e.status('DELETE', `/rounds/${r.id}/questions/${a}`, null, r.admin));
+  eq(404, await e.status('DELETE', `/rounds/${r.id}/questions/${a}`, null, r.admin), 'nur einmal');
+  eq(404, await e.status('PUT', `/rounds/${r.id}/questions/${a}/answer`, { aCt: ct() }, r.admin), 'gelöschte nicht beantwortbar');
+  [, d] = await threads([{ id: a, token: ta }]);
+  eq([{ id: a, deleted: true }], d.threads);
+  eq(404, await e.status('GET', '/questions/thread', null, `k.${a}.${ta}`), 'Einzelabruf wie bisher: weg');
+  [, d] = await e.call('GET', `/rounds/${r.id}/questions`, null, r.admin);
+  ok(!d.questions.some((q) => q.id === a), 'nicht mehr in der Liste der Organisator:in');
+  eq(1, e.count(`SELECT COUNT(*) FROM questions WHERE id = '${a}' AND q_ct = '' AND a_ct IS NULL AND own_ct IS NULL AND deleted = 1`), 'Inhalt gelöscht');
+  eq(409, (await ask(a, nid(), {}, '10.7.0.9'))[0], 'Nummer wird nicht neu vergeben');
+  // Mit der Runde verschwinden auch die Platzhalter
+  eq(204, await e.status('DELETE', `/rounds/${r.id}`, null, r.admin));
+  eq(0, e.count('SELECT COUNT(*) FROM questions'));
+});
+
 test('2.14: Nachricht an alle – nur Organisator:in, verschlüsselt durchgereicht, Grenzen, Löschen, Hinweis-Mail höchstens einmal am Tag', async () => {
   const e = await Env.make();
   const r = await e.mailRound('Test');
