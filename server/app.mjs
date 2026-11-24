@@ -586,7 +586,7 @@ export class App {
   /**
    * Nachricht der Organisator:in an alle in der Runde. bodyCt mit K_round verschlüsselt (Text und ob die eigenen
    * offenen Aufgaben mit angezeigt werden) – der Server liest nichts davon. mail: true = im E-Mail-Modus ein Hinweis
-   * ohne Inhalt an alle, die nicht abgesagt haben; höchstens einer am Tag je Runde, verschickt im Hintergrund.
+   * ohne Inhalt an alle, die angenommen und nicht abgesagt haben; höchstens einer am Tag je Runde, im Hintergrund.
    */
   addAnnouncement(req, roundId) {
     const round = this.adminRound(req, roundId);

@@ -45,11 +45,12 @@ export class Notifier {
         }
       }
 
-      // Nachricht der Organisator:in an alle (2.14): Hinweis ohne Inhalt an alle, die nicht abgesagt haben – nur wenn
-      // die Organisator:in ihn beim Senden angefordert hat und die Nachricht noch da ist
+      // Nachricht der Organisator:in an alle (2.14): Hinweis ohne Inhalt an alle, die die Einladung angenommen und nicht
+      // abgesagt haben – nur wenn die Organisator:in ihn beim Senden angefordert hat und die Nachricht noch da ist.
+      // Nicht angenommene Einladungen bekommen keine wiederholbaren Mails: Sie können sich nicht abmelden (SEC-1).
       if (r.ann_mail_req > r.ann_mail_done) {
         if (value(this.db, 'SELECT COUNT(*) FROM announcements WHERE rowid = ? AND round_id = ?', r.ann_mail_req, r.id)) {
-          jobs.push(['ann_mail_done', r.ann_mail_req, "rsvp <> 'raus'", (pid) => Texts.announcementNotice(title, base, del, pid, r.lang)]);
+          jobs.push(['ann_mail_done', r.ann_mail_req, "rsvp <> 'raus' AND claimed_at IS NOT NULL", (pid) => Texts.announcementNotice(title, base, del, pid, r.lang)]);
         } else {
           run(this.db, 'UPDATE rounds SET ann_mail_done = ? WHERE id = ?', r.ann_mail_req, r.id);
         }

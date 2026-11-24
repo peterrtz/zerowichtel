@@ -2105,6 +2105,7 @@ test('2.14: Nachricht an alle – nur Organisator:in, verschlüsselt durchgereic
     people.push(p);
   }
   await e.call('PUT', '/me/rsvp', { rsvp: 'raus' }, people[2].auth);
+  await e.person(r, 'nie-angenommen@example.org'); // eingeladen, nicht angenommen: keine wiederholbaren Mails (SEC-1)
   const base = `/rounds/${r.id}/announcements`;
   // Nur mit Admin-Zugang; Teilnehmende und Fremde nicht
   eq(401, await e.status('POST', base, { id: nid(), bodyCt: ct() }));
@@ -2127,7 +2128,7 @@ test('2.14: Nachricht an alle – nur Organisator:in, verschlüsselt durchgereic
   }
   [, d] = await e.call('GET', `/rounds/${r.id}/admin`, null, r.admin);
   eq([1, true], [d.announcements.length, d.announceMailToday]);
-  // Hinweis-Mail: an a und b (c hat abgesagt, d ohne Adresse), einmal, ohne Inhalt
+  // Hinweis-Mail: an a und b (c hat abgesagt, d ohne Adresse, e nicht angenommen), einmal, ohne Inhalt
   const before = e.s.mails().length;
   eq(2, (await e.s.notify(e.now)).sent);
   const mails = e.s.mails().slice(before);

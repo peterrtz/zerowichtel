@@ -1334,7 +1334,7 @@ export const EN = {
   "Zusätzlich Hinweis per E-Mail (ohne Inhalt)": "Also send an email notice (without content)",
   "E-Mail-Hinweise gibt es nur, wenn der E-Mail-Modus der Runde eingeschaltet ist.": "Email notices are only available when the round's email mode is switched on.",
   "Heute ging schon ein E-Mail-Hinweis raus. Höchstens einer am Tag – die Nachricht selbst kannst du trotzdem senden.": "An email notice already went out today. At most one per day – you can still send the message itself.",
-  "An alle mit hinterlegter Adresse, die nicht abgesagt und Erinnerungen nicht abbestellt haben. Die Mail enthält nur einen Hinweis und den Direktlink, nicht deinen Text. Höchstens einer am Tag.": "To everyone with a stored address who has not declined or switched off reminders. The email only contains a notice and the direct link, not your text. At most one per day.",
+  "An alle mit hinterlegter Adresse, die ihre Einladung angenommen, nicht abgesagt und Erinnerungen nicht abbestellt haben. Die Mail enthält nur einen Hinweis und den Direktlink, nicht deinen Text. Höchstens einer am Tag.": "To everyone with a stored address who has accepted their invitation, not declined and not switched off reminders. The email only contains a notice and the direct link, not your text. At most one per day.",
   "Gesendet": "Sent",
   "Nachricht von der Organisator:in": "Message from the organiser",
   "Nachricht der Organisator:in": "Message from the organiser",

@@ -49,7 +49,7 @@ export function adminAnnounceCard({ ctx, data, reload }) {
       ? t('E-Mail-Hinweise gibt es nur, wenn der E-Mail-Modus der Runde eingeschaltet ist.')
       : data.announceMailToday
         ? t('Heute ging schon ein E-Mail-Hinweis raus. Höchstens einer am Tag – die Nachricht selbst kannst du trotzdem senden.')
-        : t('An alle mit hinterlegter Adresse, die nicht abgesagt und Erinnerungen nicht abbestellt haben. Die Mail enthält nur einen Hinweis und den Direktlink, nicht deinen Text. Höchstens einer am Tag.')),
+        : t('An alle mit hinterlegter Adresse, die ihre Einladung angenommen, nicht abgesagt und Erinnerungen nicht abbestellt haben. Die Mail enthält nur einen Hinweis und den Direktlink, nicht deinen Text. Höchstens einer am Tag.')),
     full ? notice(t('Höchstens {n} Nachrichten. Bitte eine alte löschen.', { n: A.ANNOUNCE_COUNT }), 'warn') : null,
     h('p', null, send),
     h('h3', null, t('Gesendet')),
