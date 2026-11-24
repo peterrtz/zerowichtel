@@ -10,7 +10,7 @@ Der Server ist ein einzelner Node.js-Prozess (≥ 24.7) ohne npm-Pakete. Er lief
 | `server/http.mjs` | HTTP-Server: HTTPS-Weiterleitung, Sicherheitsheader, Anfragekörper (max. 64 KiB), statische Dateien aus dem Speicher (gzip), Weitergabe an die API |
 | `server/app.mjs` | Alle API-Endpunkte; Prüfung von Rechten, Status und Fristen |
 | `server/validate.mjs` | `HttpError`, Eingabeprüfung (`V.id`, `V.ct`, …), JSON-Lesen mit denselben Regeln wie PHP `json_decode` (nur Ganzzahlen, max. 15 Ebenen, gültiges UTF-8) |
-| `server/db.mjs` | SQLite über `node:sqlite`: Pragmas (WAL, `secure_delete`, `foreign_keys`), Schema-Migrationen v1–v13, nur additiv (v5: Gruppenlink, Sprache der Runde, Rätselhinweise; v6: `rounds.without_code`; v7: `rounds.teams_ct`, `participants.team_ct`, `mailboxes.wish_rev`; v8: `participants.done_ct`; v9: `rounds.q_mode`, `q_pub`, `q_anon_hash`, Tabelle `questions`; v10: `rounds.org_email_ct`, `org_email_view_ct`, `q_notified_rowid`, `q_notified_day`; v11: `participants.wish_frozen_at`, `wish_unlock_req`, `mailboxes.wish_frozen_at`; v12: `participants.mix_ct`; v13: `rounds.album_mode`, `album_pdf`, Tabelle `photos`), Transaktionen mit `BEGIN IMMEDIATE` |
+| `server/db.mjs` | SQLite über `node:sqlite`: Pragmas (WAL, `secure_delete`, `foreign_keys`), Schema-Migrationen v1–v14, nur additiv (v5: Gruppenlink, Sprache der Runde, Rätselhinweise; v6: `rounds.without_code`; v7: `rounds.teams_ct`, `participants.team_ct`, `mailboxes.wish_rev`; v8: `participants.done_ct`; v9: `rounds.q_mode`, `q_pub`, `q_anon_hash`, Tabelle `questions`; v10: `rounds.org_email_ct`, `org_email_view_ct`, `q_notified_rowid`, `q_notified_day`; v11: `participants.wish_frozen_at`, `wish_unlock_req`, `mailboxes.wish_frozen_at`; v12: `participants.mix_ct`; v13: `rounds.album_mode`, `album_pdf`, Tabelle `photos`; v14: Tabelle `announcements`, `rounds.ann_mail_req`, `ann_mail_done`, `ann_mail_day`), Transaktionen mit `BEGIN IMMEDIATE` |
 | `server/crypto.mjs` | SHA-256, Zufall, Vergleich in konstanter Zeit, `ServerCrypto` (XChaCha20-Poly1305 = HChaCha20 + ChaCha20-Poly1305, byte-kompatibel mit libsodium), Argon2id im PHC-Format |
 | `server/admin.mjs` | Admin-Bereich: Anmeldung (Passwort + TOTP oder Notfallcode), Sperre, Sitzungen, Codes, Protokoll; TOTP nach RFC 6238 |
 | `server/codes.mjs` | Organisator-Codes (`ZW-XXXX-…`, nur Hash gespeichert) |
@@ -67,7 +67,7 @@ IDs und Tokens: 22 Zeichen Base64url (128 Bit). Gespeichert wird nur SHA-256 (he
 | `PUT /rounds/{id}/draw` | a | Ziehung speichern (versiegelte Zuordnungen, Postfach-Hashes) |
 | `GET /invite` · `POST /invite/claim` | i | Einladung ansehen · einlösen |
 | `GET /join` · `POST /join` | j | Runde zum Gruppenlink ansehen (mit freien Plätzen) · selbst eintragen (angenommen und „dabei“) |
-| `GET /me` | p | eigene Seite (markiert „nach der Ziehung nachgesehen“) |
+| `GET /me` | p | eigene Seite (markiert „nach der Ziehung nachgesehen“); ab 2.14 mit `announcements` (Nachrichten an alle, neueste zuerst) |
 | `PUT /me/rsvp` · `/me/wishes` · `/me/recovery` · `/me/notify` | p | Antwort · Wünsche · neuer Wiederherstellungscode · Erinnerungen an/aus |
 | `DELETE /me/email` | p | eigene Adresse löschen |
 | `POST /recover` | – (Code) | Zugang mit Wiederherstellungscode erneuern |
@@ -98,6 +98,8 @@ IDs und Tokens: 22 Zeichen Base64url (128 Bit). Gespeichert wird nur SHA-256 (he
 | `PUT /me/mix` | p | Wichtel-Mixtape: eigene Lieder `mixCt` (K_round, AAD nur an die Runde gebunden; `null` = entfernen; abgelehnt bei Absage). `/me` liefert `mixCt` und `mixCts` – die Einträge der anderen, die dabei sind, nach Chiffretext sortiert, ohne Personen-ID. Neu einladen löscht den Eintrag |
 | `PUT /me/done` | p | eigener Haken „Geschenk erledigt“ (`doneCt`, K_round, AAD an die Person gebunden; `null` = zurücknehmen). Nur `/me` liefert ihn zurück; zurückgesetzt bei neuer Ziehung und neuer Einladung |
 | `PUT /rounds/{id}/questions/settings` | a | Rückfragen: `{mode: 0\|1\|2, pub, anonHash}` – 1 mit Namen (`pub` = öffentlicher Schlüssel der Organisator:in), 2 auch anonym (`anonHash` = Hash des gemeinsamen Tokens) |
+| `POST /rounds/{id}/announcements` | a | Nachricht an alle (2.14): `{id, bodyCt, mail?}`; `bodyCt` mit K_round (Text und „offene Aufgaben anzeigen“), höchstens 10 je Runde; `mail: true` nur im E-Mail-Modus, höchstens einmal am Tag (429 `mailed_today`, dann wird nichts gespeichert) – der Hinweis ohne Inhalt geht im Hintergrund an alle mit Adresse außer Absagen und Abbestellten |
+| `DELETE /rounds/{id}/announcements/{aid}` | a | Nachricht löschen (verschwindet bei allen; noch nicht verschickte Hinweis-Mail entfällt) |
 | `PUT /rounds/{id}/organizer-email` | a | Adresse der Organisator:in für Hinweise auf neue Rückfragen `{email, emailViewCt}` (nur E-Mail-Modus); `null` = löschen. Hinweis höchstens einmal am Tag, nur für Fragen ab dem Hinterlegen |
 | `GET /rounds/{id}/questions` · `PUT …/questions/{qid}/answer` · `DELETE …/questions/{qid}` | a | Fragen lesen (`pid` oder `anon`), antworten (`aCt`), löschen |
 | `GET` / `POST /me/questions` | p | eigene Fragen mit Namen (`ownCt`, `aCt`) · Frage stellen `{id, qCt, ownCt}`; 3 je Tag, 30 gespeichert |

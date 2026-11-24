@@ -40,6 +40,7 @@ const endpoints = [
   // 2.13: Adventsalbum
   ['PUT', `/rounds/${rid}/album`], ['GET', `/rounds/${rid}/photos`], ['GET', `/rounds/${rid}/photos/${nid()}`], ['DELETE', `/rounds/${rid}/photos/${nid()}`],
   ['GET', '/me/photos'], ['POST', '/me/photos'], ['GET', `/me/photos/${nid()}`], ['DELETE', `/me/photos/${nid()}`],
+  ['POST', `/rounds/${rid}/announcements`], ['DELETE', `/rounds/${rid}/announcements/${nid()}`],
 ];
 const fields = ['id', 'adminHash', 'mode', 'rsvpDeadline', 'wishDeadline', 'eventDate', 'metaCt', 'adminCt', 'organizerCode', 'inviteHash', 'inviteCt',
   'nameCt', 'accessHash', 'pubkey', 'recoveryHash', 'recoveryCt', 'rsvp', 'wishCt', 'bodyCt', 'recoveryToken', 'participants', 'mailboxes',

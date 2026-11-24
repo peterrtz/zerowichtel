@@ -1,6 +1,7 @@
 import { donationCard } from '../lib/donation.js';
 import { adminAlbumCard } from './album.js';
 import { navTarget, sectionNav } from './section-nav.js';
+import { adminAnnounceCard } from './announce.js';
 import { h, add, field, toast, errorBox, actionButton } from '../lib/dom.js';
 import * as M from '../lib/model.js';
 import { saveLink, removeLink, findLink, updateLink, listLinks } from '../lib/store.js';
@@ -373,6 +374,7 @@ export async function renderAdmin(root, ctx) {
     justCreated ? notice(t('Die Runde ist angelegt. Sichere jetzt den Admin-Link. Danach trag dich selbst ein, falls du mitwichtelst, und lade die Teilnehmenden ein.'), 'ok') : null,
     navTarget(saveSection, 'zugang'),
     navTarget(checklistCard(checklist, round), 'checkliste'),
+    navTarget(adminAnnounceCard({ ctx, data, reload }), 'analle'),
     meta.greeting ? card(null, md(meta.greeting)) : null,
     navTarget(card(null, factList(round, meta), calendarButton({ round, meta, role: 'admin', url: `${linkBase()}/` })), 'infos'),
     round.mode === 'schrott' ? navTarget(schrottCard({ meta, round, packages: counts.dabei, storageKey: round.id }), 'schrott') : null,

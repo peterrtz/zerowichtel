@@ -3,6 +3,7 @@
 //  - Erinnerung an die Antwortfrist: 48 h vorher, an alle ohne Antwort
 //  - Hinweis nach der Ziehung (auch nach einer Neuziehung): an alle Gezogenen
 //  - Erinnerung an die Wunschfrist: 48 h vorher, an alle Zusagenden
+//  - Nachricht der Organisator:in an alle (2.14): Hinweis ohne Inhalt, nur auf Wunsch, höchstens einmal am Tag
 //  - Tageshinweis „Neue Wichtelpost“: höchstens einmal am Tag, an ALLE Zusagenden der Runde.
 //    Der Server weiß nicht, welches Postfach zu wem gehört – ein gezielter Hinweis würde die Zuordnung verraten.
 // Jede Mail enthält einen Direktlink ohne Geheimnis (#zu/<personId>), der auf dem eigenen Gerät zur Seite führt.
@@ -41,6 +42,16 @@ export class Notifier {
         const today = Math.floor(now / 86400);
         if (maxId > r.digest_msg_id && today > r.digest_day) {
           jobs.push(['digest', [maxId, today], "rsvp = 'dabei'", (pid) => Texts.digest(title, base, del, pid, r.lang)]);
+        }
+      }
+
+      // Nachricht der Organisator:in an alle (2.14): Hinweis ohne Inhalt an alle, die nicht abgesagt haben – nur wenn
+      // die Organisator:in ihn beim Senden angefordert hat und die Nachricht noch da ist
+      if (r.ann_mail_req > r.ann_mail_done) {
+        if (value(this.db, 'SELECT COUNT(*) FROM announcements WHERE rowid = ? AND round_id = ?', r.ann_mail_req, r.id)) {
+          jobs.push(['ann_mail_done', r.ann_mail_req, "rsvp <> 'raus'", (pid) => Texts.announcementNotice(title, base, del, pid, r.lang)]);
+        } else {
+          run(this.db, 'UPDATE rounds SET ann_mail_done = ? WHERE id = ?', r.ann_mail_req, r.id);
         }
       }
 

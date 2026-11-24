@@ -3,7 +3,7 @@ import * as M from '../lib/model.js';
 import { saveLink, removeLink, findLink, updateLink } from '../lib/store.js';
 import { shareBar } from '../lib/share.js';
 import { relative, nowSec, formatDate, euro } from '../lib/dates.js';
-import { t } from '../lib/i18n.js';
+import { t, tn } from '../lib/i18n.js';
 import { page, card, chip, mount, setTitle, loading, notice, roundHeader, factList, md, printRecovery, qrSvg, codeView, calendarButton, timeline } from './common.js';
 import { personDrawSection } from './person-draw.js';
 import { schrottCard } from './game.js';
@@ -12,10 +12,38 @@ import { personQuestionsCard, helpButton } from './questions.js';
 import { mixtapeCard } from './mixtape.js';
 import { personAlbumCard } from './album.js';
 import { navTarget, sectionNav } from './section-nav.js';
+import { personAnnounceCard } from './announce.js';
 import { donationCard } from '../lib/donation.js';
 import { forgetAnonQuestions } from '../lib/questions.js';
 import { recoveryPng, saveImage } from '../lib/recovery-image.js';
 import { setStaleLinkHandler } from '../lib/api.js';
+
+/**
+ * Eigene offene Aufgaben (2.14) für die Nachricht der Organisator:in: nur, was die Person selbst noch tun kann.
+ * Wird auf dem Gerät berechnet; niemand sonst erfährt das Ergebnis.
+ */
+export function openTodos({ round, me, confirmed, now = nowSec(), teams = null, myTeam = null, giftDone = false, postOpen = 0 }) {
+  const todos = [];
+  if (!confirmed) todos.push(t('Zugang sichern: persönlichen Link speichern und den Wiederherstellungscode aufheben.'));
+  if (me.rsvp === 'raus') return todos;
+  const wichteln = round.mode === 'wichteln';
+  if (round.status === 'offen') {
+    if (me.rsvp === 'offen' && now < round.rsvpDeadline) todos.push(t('Zu- oder absagen – bis {date}.', { date: formatDate(round.rsvpDeadline) }));
+    if (wichteln && teams && me.rsvp === 'dabei' && (!myTeam || !teams.some((x) => x.id === myTeam))) todos.push(t('Team wählen – bis zur Auslosung.'));
+  }
+  if (wichteln && !teams && me.rsvp === 'dabei' && !me.wishCt && round.wishDeadline && now < round.wishDeadline
+    && (round.status === 'offen' || me.assignmentCt)) {
+    todos.push(t('Wünsche eintragen (oder „keine Idee“) – bis {date}.', { date: formatDate(round.wishDeadline) }));
+  }
+  if (postOpen > 0) todos.push(tn(postOpen, 'Wichtelpost beantworten: {n} offene Frage.', 'Wichtelpost beantworten: {n} offene Fragen.'));
+  const giftable = now < round.eventDate && me.rsvp === 'dabei' && (wichteln ? round.status === 'gezogen' && !!me.assignmentCt : true);
+  if (giftable && !giftDone) {
+    todos.push(wichteln
+      ? t('Geschenk besorgen bis {date} – danach oben „besorgt und verpackt“ abhaken.', { date: formatDate(round.eventDate) })
+      : t('Schrottgeschenk einpacken und am {date} mitbringen.', { date: formatDate(round.eventDate) }));
+  }
+  return todos;
+}
 
 /** „Was jetzt?“ – die nächsten Schritte aus Sicht der Teilnehmenden, rein aus Status und Terminen. */
 export function nextSteps({ round, me, confirmed, now = nowSec(), budget, teams = null, myTeam = null, giftDone = false }) {
@@ -122,13 +150,18 @@ export async function renderPerson(root, pctx) {
   const key = { kind: 'p', roundId: pctx.roundId, pid: pctx.pid };
   const fragment = M.personFragment(pctx);
   const known = findLink(key);
-  saveLink({ ...(known || {}), ...key, fragment, title: meta.title, who: name, eventDate: round.eventDate });
+  // Wie beim Admin-Link (2.14): Kennt dieses Gerät die Runde noch nicht, wurde der persönliche Link von außen geöffnet
+  // (gespeichert, geteilt, per QR-Code vom anderen Gerät) – er ist also gesichert. Nachgefragt wird nur auf dem Gerät,
+  // auf dem die Einladung angenommen wurde, bis dort „gesichert“ bestätigt ist.
+  saveLink({ ...(known || { confirmed: true }), ...key, fragment, title: meta.title, who: name, eventDate: round.eventDate });
   setTitle(meta.title);
   const reload = () => renderPerson(root, pctx);
   const stored = findLink(key);
   const justClaimed = sessionStorage.getItem('zw.justClaimed') === pctx.pid;
+  const justRecovered = sessionStorage.getItem('zw.justRecovered') === pctx.pid;
   const justJoined = sessionStorage.getItem('zw.justJoined') === pctx.pid;
   sessionStorage.removeItem('zw.justClaimed');
+  sessionStorage.removeItem('zw.justRecovered');
   sessionStorage.removeItem('zw.justJoined');
 
   // ---------- Zugang sichern
@@ -244,7 +277,26 @@ export async function renderPerson(root, pctx) {
   }, t('Von diesem Gerät entfernen'));
 
   const drawPart = await personDrawSection({ pctx, data, reload });
+  const post = drawPart?.post ?? null;
   const steps = nextSteps({ round, me, confirmed, budget: meta.budget, teams: data.teams, myTeam: data.myTeam, giftDone: data.giftDone });
+  // Offene Fragen in der Wichtelpost (2.14): ganz oben in „Was jetzt?“, mit Sprung zum Antwortfeld
+  if (post?.open) {
+    steps.unshift(h('span', null,
+      data.teams
+        ? tn(post.open, 'Euer Wichtel-Team hat euch eine Frage gestellt.', 'Euer Wichtel-Team hat euch {n} Fragen gestellt.')
+        : tn(post.open, 'Dein Wichtel hat dir eine Frage gestellt.', 'Dein Wichtel hat dir {n} Fragen gestellt.'),
+      ' ',
+      h('button', { type: 'button', class: 'btn btn-small btn-primary', on: { click: () => {
+        const ta = document.querySelector('.card-post .msg-input-r');
+        ta?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        ta?.focus({ preventScroll: true });
+      } } }, t('Jetzt antworten'))));
+  }
+  const announce = personAnnounceCard({ pctx, list: data.announcements,
+    todos: openTodos({ round, me, confirmed, teams: data.teams, myTeam: data.myTeam, giftDone: data.giftDone, postOpen: post?.open ?? 0 }) });
+  // Mit offenen Fragen rückt die Wichtelpost direkt unter „Was jetzt?“
+  const urgentPost = post?.open ? drawPart.querySelector('[data-urgent]') : null;
+  urgentPost?.remove();
   // Eigener Haken „Geschenk erledigt“: Wichteln nach der Ziehung (wer zugelost ist), Schrottwichteln bei Zusage
   const giftable = nowSec() < round.eventDate && me.rsvp === 'dabei'
     && (round.mode === 'wichteln' ? round.status === 'gezogen' && !!me.assignmentCt : true);
@@ -271,9 +323,12 @@ export async function renderPerson(root, pctx) {
     roundHeader(round, meta),
     h('p', { class: 'lead' }, t('Hallo {name}!', { name })),
     justClaimed ? notice(t('Einladung angenommen. Sichere jetzt deinen Zugang, dann sag zu oder ab.'), 'ok') : null,
+    justRecovered ? notice(t('Zugang wiederhergestellt. Dein Wiederherstellungscode bleibt gültig; dein bisheriger persönlicher Link und andere Geräte sind abgemeldet. Für weitere Geräte nimm „Auf weiterem Gerät öffnen“.'), 'ok') : null,
     justJoined ? notice(t('Du bist eingetragen und dabei. Sichere jetzt deinen Zugang.'), 'ok') : null,
+    announce.el ? navTarget(announce.el, 'nachricht') : null,
     navTarget(card(t('Was jetzt?'), h('ul', { class: 'next-steps' }, steps.map((s) => h('li', null, s))), giftBox, timeline(round, { ...(giftable || data.giftDone ? { gift: data.giftDone } : {}), wishFrozen: !!me.wishFrozenAt }),
       (round.questions?.mode ?? 0) > 0 ? h('p', { class: 'help-row' }, helpButton()) : null), 'start'),
+    urgentPost,
     me.rsvp !== 'raus' ? countdownCard(round) : null,
     navTarget(accessSection, 'zugang'),
     round.status === 'offen' ? navTarget(rsvpCard, 'zusage') : null,
@@ -289,6 +344,8 @@ export async function renderPerson(root, pctx) {
     h('p', { class: 'center' }, removeBtn),
   ));
   sectionNav(root);
+  announce.apply();
+  post?.apply();
   // Zugang inzwischen ungültig (z. B. auf einem anderen Gerät wiederhergestellt) oder neu ausgelost: neu laden –
   // die Seite erklärt dann, was los ist, statt beim nächsten Klick nur „Nicht gefunden“ zu melden (2.13.2)
   setStaleLinkHandler(reload);

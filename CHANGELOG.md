@@ -1,5 +1,16 @@
 # Änderungen
 
+## 2.14.0 – 2026-11-24
+
+Neues Datenbankschema 14 (nur hinzugefügt: Tabelle `announcements`, drei Spalten in `rounds`). Teilnahmedaten bleiben unverändert.
+
+- **Nachricht an alle:** Die Organisator:in schreibt in der Verwaltung eine Nachricht, die oben auf allen Seiten der Runde erscheint – mit dem Rundenschlüssel verschlüsselt, der Server kann sie nicht lesen. Markdown wie bei der Begrüßung, höchstens 1500 Zeichen, höchstens 10 Nachrichten je Runde; Löschen entfernt sie bei allen. Neue Nachrichten sind „neu“ markiert und zählen im Sprungmenü, bis sie 1,5 s sichtbar waren (gemerkt nur auf dem Gerät).
+- **Mit offenen Aufgaben (vorausgewählt):** Unter der Nachricht sieht jede Person ihre eigenen offenen Punkte – Zugang sichern, Zu-/Absage, Team wählen, Wünsche eintragen, offene Frage in der Wichtelpost, Geschenk besorgen. Berechnet auf dem Gerät der Person; weder Organisator:in noch Server erfahren das Ergebnis. Vorlage „Erinnerung an offene Aufgaben“ zum Einfügen.
+- **Hinweis per E-Mail (optional, nur im E-Mail-Modus):** Mail ohne Inhalt mit Direktlink an alle mit Adresse, die nicht abgesagt und Erinnerungen nicht abbestellt haben; höchstens eine am Tag je Runde. Wird die Nachricht vor dem Versand gelöscht, geht keine Mail raus.
+- **Wichtelpost präsenter:** Offene Fragen (Nachrichten des Wichtels nach der letzten eigenen Antwort – ergibt sich aus dem Verlauf, auf jedem Gerät gleich) stehen als erster Punkt in „Was jetzt?“ mit „Jetzt antworten“; die Karte rückt dann direkt darunter, ist hervorgehoben, Fragen sind als „offen“ markiert, das Sprungmenü hat einen eigenen Punkt „Wichtelpost“ mit Zahl. Der Wichtel sieht neue Antworten als „neu“ mit Zahl am Menüpunkt (gemerkt nur auf dem Gerät). Gilt auch beim Team-Wichteln.
+- **„Zugang sichern“ fragt seltener:** Wird der persönliche Link auf einem Gerät geöffnet, das die Runde noch nicht kennt (gespeicherter Link, „Auf weiterem Gerät öffnen“), oder der Wiederherstellungscode eingelöst, gilt der Zugang als gesichert – wie schon beim Admin-Link. Nachgefragt wird nur noch auf dem Gerät, auf dem die Einladung angenommen wurde. Nach dem Einlösen des Codes steht ein passender Hinweis statt „Einladung angenommen“.
+- **Geprüft:** Anonyme Rückfragen an die Organisator:in und die anonyme Wichtelpost funktionieren (Browser-Durchläufe 25, 28, M2, neu 34; API-Tests).
+
 ## 2.13.2 – 2026-11-20
 
 Kein neues Datenbankschema.

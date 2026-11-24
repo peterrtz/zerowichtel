@@ -6,7 +6,8 @@ import * as M from '../lib/model.js';
 import { markdownEditor } from '../lib/editor.js';
 import { formatDate, formatShort, formatDateTime, nowSec, relative, euro, toDateInput } from '../lib/dates.js';
 import { t, tn } from '../lib/i18n.js';
-import { card, chip, md, notice } from './common.js';
+import { card, chip, md, notice, whenSeen } from './common.js';
+import { navTarget, setNavBadge } from './section-nav.js';
 import { revealBox, ideaDice } from './extras.js';
 
 // ---------- Anzeige einer Wunschliste
@@ -263,11 +264,65 @@ function messageText(m, team = false) {
   return m.text;
 }
 
-function thread({ box, role, messages, otherLabel, canWrite, onSent, emptyText, team = false }) {
+// ---------- Wichtelpost sichtbarer machen (2.14)
+
+/**
+ * Offene Fragen an die beschenkte Person: Nachrichten des Wichtels nach der letzten eigenen Antwort.
+ * Ergibt sich allein aus dem Verlauf – auf jedem Gerät gleich, nichts wird gespeichert.
+ */
+export function openQuestions(messages = []) {
+  let lastAnswer = -1;
+  messages.forEach((m, i) => { if (m.direction === 'antwort') lastAnswer = i; });
+  return messages.slice(lastAnswer + 1).filter((m) => m.direction === 'frage' && m.kind === 'msg');
+}
+
+// Neue Antworten an den Wichtel: pro Gerät gemerkt (höchste gesehene Nachrichten-ID), der Server erfährt nichts davon
+const postSeenKey = (mid) => `zw.postSeen.${mid}`;
+function readPostSeen(mid) {
+  try { return Number(localStorage.getItem(postSeenKey(mid))) || 0; } catch { return 0; }
+}
+function writePostSeen(mid, id) {
+  try { if (id > readPostSeen(mid)) localStorage.setItem(postSeenKey(mid), String(id)); } catch { /* nur Komfort */ }
+}
+export function newAnswers(messages = [], seenId = 0) {
+  return messages.filter((m) => m.direction === 'antwort' && m.id > seenId);
+}
+
+/**
+ * Zustand der Wichtelpost für die Seite: offene Fragen (als beschenkte Person) und neue Antworten (als Wichtel).
+ * Setzt die Zahlen am Sprungmenü erst, wenn das Menü steht (apply), und merkt Antworten als gesehen, sobald der
+ * Verlauf 1,5 s sichtbar war.
+ */
+function postState(giving, giveBox, recvBox) {
+  const open = openQuestions(recvBox.messages);
+  const seen = readPostSeen(giving.mid);
+  const fresh = newAnswers(giveBox.messages, seen);
+  const freshIds = new Set(fresh.map((m) => m.id));
+  const openIds = new Set(open.map((m) => m.id));
+  const newest = giveBox.messages.reduce((x, m) => (m.direction === 'antwort' ? Math.max(x, m.id) : x), 0);
+  let giverThread = null;
+  return {
+    open: open.length,
+    fresh: fresh.length,
+    isOpen: (m) => openIds.has(m.id),
+    isNew: (m) => freshIds.has(m.id),
+    setGiverThread(el) { giverThread = el; return el; },
+    apply() {
+      setNavBadge('post', open.length, tn(open.length, '{n} offene Frage', '{n} offene Fragen'));
+      setNavBadge('wichtel', fresh.length, tn(fresh.length, '{n} neue Antwort', '{n} neue Antworten'));
+      if (fresh.length && giverThread) {
+        whenSeen(giverThread, () => { writePostSeen(giving.mid, newest); setNavBadge('wichtel', 0); });
+      } else if (newest > seen) writePostSeen(giving.mid, newest);
+    },
+  };
+}
+
+function thread({ box, role, messages, otherLabel, canWrite, onSent, emptyText, team = false, isNew = () => false, isOpen = () => false }) {
   const list = h('ul', { class: 'thread' }, messages.map((m) => {
     const mine = (role === 'g') === (m.direction === 'frage');
-    return h('li', { class: ['msg', mine ? 'msg-mine' : 'msg-other', m.kind !== 'msg' && `msg-${m.kind}`] },
-      h('span', { class: 'msg-who' }, mine ? (team ? t('Euer Team') : t('Du')) : otherLabel, m.kind !== 'msg' ? ` · ${t(KIND_LABEL[m.kind])}` : ''),
+    const flag = isOpen(m) ? chip(t('offen'), 'warn') : isNew(m) ? chip(t('neu'), 'ok') : null;
+    return h('li', { class: ['msg', mine ? 'msg-mine' : 'msg-other', m.kind !== 'msg' && `msg-${m.kind}`, flag && 'msg-flag'] },
+      h('span', { class: 'msg-who' }, mine ? (team ? t('Euer Team') : t('Du')) : otherLabel, m.kind !== 'msg' ? ` · ${t(KIND_LABEL[m.kind])}` : '', flag ? ' ' : '', flag),
       h('p', null, messageText(m, team)),
       h('span', { class: 'msg-day' }, formatShort(m.day * 86400 + 43200)));
   }));
@@ -276,7 +331,7 @@ function thread({ box, role, messages, otherLabel, canWrite, onSent, emptyText, 
   const label = team
     ? (role === 'g' ? t('Nachricht an das beschenkte Team') : t('Nachricht an euer Wichtel-Team'))
     : (role === 'g' ? t('Nachricht an deine Person') : t('Nachricht an deinen Wichtel'));
-  const ta = h('textarea', { rows: 2, maxlength: M.WISH_LIMITS.message, 'aria-label': label, placeholder: role === 'g' ? (team ? t('z. B. Lieber Tee oder Kaffee?') : t('z. B. Welche Kleidergröße hast du?')) : t('Deine Antwort …') });
+  const ta = h('textarea', { rows: 2, maxlength: M.WISH_LIMITS.message, 'aria-label': label, class: `msg-input-${role}`, placeholder: role === 'g' ? (team ? t('z. B. Lieber Tee oder Kaffee?') : t('z. B. Welche Kleidergröße hast du?')) : t('Deine Antwort …') });
   return h('div', null, list,
     h('div', { class: 'msg-compose' }, ta,
       actionButton(role === 'g' ? t('Anonym fragen') : t('Antworten'), async () => {
@@ -450,6 +505,7 @@ async function teamDrawnView({ round, meta, name, drawn, reload, wrap }) {
   const canWrite = now < openUntil;
   const afterEvent = now >= round.eventDate && canWrite;
   const teamLabel = t('Team {name}', { name: myTeam.name });
+  const post = postState(giving, giveBox, recvBox);
 
   const revealCard = h('section', { class: 'card card-reveal' },
     revealBox(`${receiving.mid}.${round.drawnAt}`, [
@@ -464,7 +520,7 @@ async function teamDrawnView({ round, meta, name, drawn, reload, wrap }) {
     now < round.eventDate || giveBox.hints.length ? hintsGiver({ box: giving, mailbox: giveBox, round, reload }) : null,
     afterEvent ? afterEventGiver({ box: giving, mailbox: giveBox, name: teamLabel, reload, team: true }) : null,
     h('h3', null, t('Anonym nachfragen')),
-    thread({ box: giving, role: 'g', messages: giveBox.messages, otherLabel: receiverTeam.name, canWrite, onSent: reload, emptyText: t('Noch keine Fragen gestellt.'), team: true }),
+    post.setGiverThread(thread({ box: giving, role: 'g', messages: giveBox.messages, otherLabel: receiverTeam.name, canWrite, onSent: reload, emptyText: t('Noch keine Fragen gestellt.'), team: true, isNew: post.isNew })),
     h('p', { class: 'hint' }, t('Das andere Team sieht nur „Euer Wichtel-Team“, nie euren Teamnamen. Alle in eurem Team sehen diese Nachrichten.')),
   );
 
@@ -490,14 +546,33 @@ async function teamDrawnView({ round, meta, name, drawn, reload, wrap }) {
         },
         onWithdraw: async () => {},
       })),
-    card(t('Post an euer Team'),
+    postCard(post, t('Post an euer Team'), true,
       hintsReceiver(recvBox),
       afterEvent ? afterEventReceiver({ box: receiving, mailbox: recvBox, reload, team: true }) : null,
       !afterEvent && canWrite ? h('p', { class: 'hint' }, t('Ab der Bescherung könnt ihr raten, welches Team euch beschenkt hat, und euch anonym bedanken.')) : null,
       h('h3', null, t('Nachrichten')),
-      thread({ box: receiving, role: 'r', messages: recvBox.messages, otherLabel: t('Euer Wichtel-Team'), canWrite, onSent: reload, emptyText: t('Noch keine Fragen eures Wichtel-Teams.'), team: true })),
+      thread({ box: receiving, role: 'r', messages: recvBox.messages, otherLabel: t('Euer Wichtel-Team'), canWrite, onSent: reload, emptyText: t('Noch keine Fragen eures Wichtel-Teams.'), team: true, isOpen: post.isOpen })),
   );
+  wrap.post = post;
   return wrap;
+}
+
+/**
+ * Karte der empfangenen Wichtelpost. Mit offenen Fragen hervorgehoben (data-urgent): Die Personenseite rückt sie dann
+ * direkt unter „Was jetzt?“.
+ */
+function postCard(post, title, team, ...children) {
+  const c = navTarget(card(title, post.open
+    ? notice(team
+      ? tn(post.open, 'Euer Wichtel-Team wartet auf eure Antwort ({n} offene Frage).', 'Euer Wichtel-Team wartet auf eure Antwort ({n} offene Fragen).')
+      : tn(post.open, 'Dein Wichtel wartet auf deine Antwort ({n} offene Frage).', 'Dein Wichtel wartet auf deine Antwort ({n} offene Fragen).'), 'warn')
+    : null, ...children), 'post');
+  c.classList.add('card-post');
+  if (post.open) {
+    c.classList.add('card-attention');
+    c.dataset.urgent = '1';
+  }
+  return c;
 }
 
 // ---------- Abschnitt für die Personenansicht
@@ -549,6 +624,7 @@ export async function personDrawSection({ pctx, data, reload }) {
   const canWrite = now < openUntil;
   const afterEvent = now >= round.eventDate && canWrite;
   const otherName = giving.name || t('deine gezogene Person');
+  const post = postState(giving, giveBox, recvBox);
 
   const revealCard = h('section', { class: 'card card-reveal' },
     revealBox(`${pctx.pid}.${round.drawnAt}`, [
@@ -562,7 +638,7 @@ export async function personDrawSection({ pctx, data, reload }) {
     now < round.eventDate || giveBox.hints.length ? hintsGiver({ box: giving, mailbox: giveBox, round, reload }) : null,
     afterEvent ? afterEventGiver({ box: giving, mailbox: giveBox, name, reload }) : null,
     h('h3', null, t('Anonym nachfragen')),
-    thread({ box: giving, role: 'g', messages: giveBox.messages, otherLabel: giving.name || t('Antwort'), canWrite, onSent: reload, emptyText: t('Noch keine Fragen gestellt.') }),
+    post.setGiverThread(thread({ box: giving, role: 'g', messages: giveBox.messages, otherLabel: giving.name || t('Antwort'), canWrite, onSent: reload, emptyText: t('Noch keine Fragen gestellt.'), isNew: post.isNew })),
     h('p', { class: 'hint' }, t('Deine Person sieht nur „Dein Wichtel“, nie deinen Namen.')),
   );
 
@@ -572,12 +648,13 @@ export async function personDrawSection({ pctx, data, reload }) {
       wishEditor({ initial: own, deadline: round.wishDeadline, onSave: (w, stats, o = {}) => M.saveOwnWish(pctx, w, receiving, stats, { ...o, frozenAt: me.wishFrozenAt }),
         onWithdraw: async () => { await M.withdrawHealthConsent(pctx, own, receiving); reload(); },
         freeze: freezeOpts(pctx, me, reload) })),
-    card(t('Post von deinem Wichtel'),
+    postCard(post, t('Post von deinem Wichtel'), false,
       hintsReceiver(recvBox),
       afterEvent ? afterEventReceiver({ box: receiving, mailbox: recvBox, reload }) : null,
       !afterEvent && canWrite ? h('p', { class: 'hint' }, t('Ab der Bescherung kannst du raten, wer dein Wichtel war, und dich anonym bedanken.')) : null,
       h('h3', null, t('Nachrichten')),
-      thread({ box: receiving, role: 'r', messages: recvBox.messages, otherLabel: t('Dein Wichtel'), canWrite, onSent: reload, emptyText: t('Noch keine Fragen deines Wichtels.') })),
+      thread({ box: receiving, role: 'r', messages: recvBox.messages, otherLabel: t('Dein Wichtel'), canWrite, onSent: reload, emptyText: t('Noch keine Fragen deines Wichtels.'), isOpen: post.isOpen })),
   );
+  wrap.post = post;
   return wrap;
 }

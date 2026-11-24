@@ -27,12 +27,12 @@ import { RateLimiter } from './ratelimit.mjs';
 import { HttpError, V, chars, fail, get, has, isArr, phpTrim } from './validate.mjs';
 import { validEmail } from './email.mjs';
 
-export const VERSION = '2.13.2';
+export const VERSION = '2.14.0';
 const DAY = 86400;
 const DELETE_AFTER_EVENT = 14 * DAY;
 const MAX_FUTURE = 366 * DAY;
 // Höchstlängen der Chiffretexte (Base64url-Zeichen)
-const L = { META: 24000, ADMIN: 60000, NAME: 600, INVITE: 600, RECOVERY: 1200, SEALED: 2000, ASSIGN: 12000, WISH: 40000, MESSAGE: 3000, EMAIL_VIEW: 1200, JOIN: 600, HINT: 2000, TEAMS: 8000, TEAM: 400, DONE: 400, MIX: 4000, PHOTO_META: 2400, QUESTION: 6000, OWN: 6000, ANSWER: 6000 };
+const L = { META: 24000, ADMIN: 60000, NAME: 600, INVITE: 600, RECOVERY: 1200, SEALED: 2000, ASSIGN: 12000, WISH: 40000, MESSAGE: 3000, EMAIL_VIEW: 1200, JOIN: 600, HINT: 2000, TEAMS: 8000, TEAM: 400, DONE: 400, MIX: 4000, PHOTO_META: 2400, QUESTION: 6000, OWN: 6000, ANSWER: 6000, ANNOUNCE: 8000 };
 // Rückfragen: 700 Zeichen Text (bis 2100 Byte UTF-8) plus Schlüssel und Rahmen, Base64 → großzügig 6000
 const Q_PER_DAY = 3;         // je Person (mit Namen) bzw. je Anschluss (anonym) und Tag
 const Q_ANON_ROUND_DAY = 20;  // anonyme Fragen je Runde und Tag insgesamt
@@ -41,6 +41,7 @@ const FREEZE_GRACE = DAY;      // nach dem Festlegen der Wünsche: 24 h für Kor
 // ASSIGN: Team-Zuordnung enthält die Namen beider Teams. Gemessen: 50 Personen mit 40 Zeichen à 3 Byte = 9053 Zeichen.
 const MAX_MESSAGES = 100;
 const MAX_HINTS = 5;
+const MAX_ANNOUNCEMENTS = 10; // Nachrichten der Organisator:in an alle (2.14)
 // Wichtelpost bleibt nach dem Wichteldatum eine Woche offen: Dankeschön, „Errate deinen Wichtel“, Auflösung
 const POST_EVENT = 7 * DAY;
 // Adventsalbum (2.13): Foto und Vorschau als rohe Chiffretext-Bytes (12 Byte IV + Daten + 16 Byte Tag)
@@ -211,6 +212,8 @@ export class App {
       r('PUT', '/rounds/:id/organizer-email', (q, id) => this.setOrganizerEmail(q, id)),
       r('PUT', '/rounds/:id/questions/:id/answer', (q, id, qid) => this.answerQuestion(q, id, qid)),
       r('DELETE', '/rounds/:id/questions/:id', (q, id, qid) => this.deleteQuestion(q, id, qid)),
+      r('POST', '/rounds/:id/announcements', (q, id) => this.addAnnouncement(q, id)),
+      r('DELETE', '/rounds/:id/announcements/:id', (q, id, aid) => this.deleteAnnouncement(q, id, aid)),
       r('GET', '/me/questions', (q) => this.myQuestions(q)),
       r('POST', '/me/questions', (q) => this.askNamed(q)),
       r('POST', '/questions/anon', (q) => this.askAnon(q)),
@@ -548,6 +551,58 @@ export class App {
     return json({ id: q.id, aCt: q.a_ct, day: q.day, answerDay: q.answer_day });
   }
 
+  // ------------------------------------------------------------------ Nachricht an alle (2.14)
+
+  /**
+   * Nachricht der Organisator:in an alle in der Runde. bodyCt mit K_round verschlüsselt (Text und ob die eigenen
+   * offenen Aufgaben mit angezeigt werden) – der Server liest nichts davon. mail: true = im E-Mail-Modus ein Hinweis
+   * ohne Inhalt an alle, die nicht abgesagt haben; höchstens einer am Tag je Runde, verschickt im Hintergrund.
+   */
+  addAnnouncement(req, roundId) {
+    const round = this.adminRound(req, roundId);
+    const b = req.body;
+    const id = V.id(b, 'id');
+    const bodyCt = V.ct(b, 'bodyCt', L.ANNOUNCE);
+    const m = get(b, 'mail');
+    if (m !== null && typeof m !== 'boolean') fail('mail');
+    const mail = m === true;
+    const now = this.now();
+    const today = Math.floor(now / DAY);
+    if (now >= round.delete_after) throw new HttpError(409, 'ended', 'Die Runde ist abgelaufen.');
+    if (value(this.db, 'SELECT COUNT(*) FROM announcements WHERE round_id = ?', round.id) >= MAX_ANNOUNCEMENTS) {
+      throw new HttpError(409, 'too_many', `Höchstens ${MAX_ANNOUNCEMENTS} Nachrichten. Bitte eine alte löschen.`);
+    }
+    if (mail) {
+      if (!this.mailer || !round.email_enabled) throw new HttpError(409, 'email_unavailable', 'Der E-Mail-Modus ist für diese Runde nicht eingeschaltet.');
+      if (round.ann_mail_day === today) throw new HttpError(429, 'mailed_today', 'Heute ging schon ein E-Mail-Hinweis auf eine Nachricht raus. Sende die Nachricht ohne E-Mail-Hinweis oder morgen erneut.');
+    }
+    tx(this.db, () => {
+      try {
+        run(this.db, 'INSERT INTO announcements (id, round_id, body_ct, created_at) VALUES (?, ?, ?, ?)', id, round.id, bodyCt, now);
+      } catch (e) {
+        if (isUnique(e)) throw new HttpError(409, 'exists', 'Bitte erneut versuchen.');
+        throw e;
+      }
+      if (mail) {
+        const rowid = value(this.db, 'SELECT rowid FROM announcements WHERE id = ?', id);
+        run(this.db, 'UPDATE rounds SET ann_mail_req = ?, ann_mail_day = ? WHERE id = ?', rowid, today, round.id);
+      }
+    });
+    return json({ id, createdAt: now, mailQueued: mail }, 201);
+  }
+
+  deleteAnnouncement(req, roundId, aid) {
+    const round = this.adminRound(req, roundId);
+    const { changes } = run(this.db, 'DELETE FROM announcements WHERE id = ? AND round_id = ?', aid, round.id);
+    if (changes !== 1) notFound();
+    return noContent();
+  }
+
+  announcementsOf(roundId) {
+    return all(this.db, 'SELECT id, body_ct, created_at FROM announcements WHERE round_id = ? ORDER BY created_at DESC, rowid DESC', roundId)
+      .map((a) => ({ id: a.id, bodyCt: a.body_ct, createdAt: a.created_at }));
+  }
+
   /** Analoge Wichtelrunde vorbereitet: nur zählen, keine Inhalte. Begrenzt je Anschluss und Tag. */
   statsAnalog(req) {
     const now = this.now();
@@ -780,6 +835,8 @@ export class App {
       // Runden ohne Code: E-Mail nur, wenn im Admin-Bereich erlaubt (bereits eingeschaltete bleiben bedienbar)
       emailAvailable: this.mailer !== null && (round.without_code !== 1 || round.email_enabled === 1 || openSettings(this.db).email),
       albumAvailable: this.config.album.enabled,
+      announcements: this.announcementsOf(round.id),
+      announceMailToday: round.ann_mail_day === Math.floor(this.now() / DAY),
     });
   }
 
@@ -1323,6 +1380,7 @@ export class App {
       mixCts: all(this.db, "SELECT mix_ct FROM participants WHERE round_id = ? AND id <> ? AND rsvp = 'dabei' AND mix_ct IS NOT NULL ORDER BY mix_ct", round.id, p.id)
         .map((x) => x.mix_ct),
       counts: { invited: c.total, dabei: c.dabei ?? 0 },
+      announcements: this.announcementsOf(round.id),
       // Team-Wichteln: Teamwahlen aller Zusagenden für die Anzahl je Team – mit der zufälligen Personen-ID (an sie ist
       // der Chiffretext gebunden), ohne Namen. Sortiert nach ID, die Reihenfolge verrät nichts.
       teamCts: round.teams_ct === null ? undefined

@@ -28,6 +28,20 @@ export function notice(text, kind = 'info') {
   return h('div', { class: ['notice', `notice-${kind}`] }, text);
 }
 
+/**
+ * fn einmal aufrufen, sobald el mindestens 1,5 s sichtbar war (Seite im Vordergrund). Für „gelesen“-Markierungen,
+ * die nur auf dem Gerät gemerkt werden. Ohne IntersectionObserver (alte Browser, Tests): sofort.
+ */
+export function whenSeen(el, fn, ms = 1500) {
+  if (typeof IntersectionObserver !== 'function') { fn(); return; }
+  let timer = null;
+  const io = new IntersectionObserver(([e]) => {
+    clearTimeout(timer);
+    if (e.isIntersecting && document.visibilityState === 'visible') timer = setTimeout(() => { io.disconnect(); fn(); }, ms);
+  }, { threshold: 0.3 });
+  io.observe(el);
+}
+
 export function md(text) {
   const d = h('div', { class: 'md' });
   d.appendChild(toDom(text || ''));

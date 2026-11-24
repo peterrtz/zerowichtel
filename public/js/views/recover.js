@@ -58,8 +58,9 @@ export function renderRecover(root, prefill = '') {
     try {
       const pctx = await M.recoverFromCode(input.value);
       const code = encodeRecoveryCode(decodeRecoveryCode(input.value));
-      saveLink({ kind: 'p', roundId: pctx.roundId, pid: pctx.pid, fragment: M.personFragment(pctx), title: t('Wichtelrunde'), recoveryCode: code, confirmed: false });
-      sessionStorage.setItem('zw.justClaimed', pctx.pid);
+      saveLink({ kind: 'p', roundId: pctx.roundId, pid: pctx.pid, fragment: M.personFragment(pctx), title: t('Wichtelrunde'), recoveryCode: code, confirmed: true });
+      // Wer den Code eingegeben hat, hat ihn gesichert – und er bleibt gültig (2.14: nicht erneut „Zugang sichern“ fragen)
+      sessionStorage.setItem('zw.justRecovered', pctx.pid);
       history.replaceState(null, '', M.personFragment(pctx));
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     } catch (e) {

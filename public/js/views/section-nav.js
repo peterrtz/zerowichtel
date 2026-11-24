@@ -18,6 +18,7 @@ const P = {
   email: 'M3 6h18v12H3zM3 7l9 6.5L21 7',
   schrott: 'M5 5h14v14H5zM9 9h.01M15 15h.01M15 9h.01M9 15h.01M12 12h.01',
   teilnehmende: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20c.5-3.5 3-5.5 6.5-5.5s6 2 6.5 5.5M16 4.5a3.3 3.3 0 0 1 0 6.4M18 14.8c2 .7 3.3 2.4 3.5 5.2',
+  analle: 'M4 10v4h3l6 4V6L7 10H4ZM16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11',
   gruppenlink: 'M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1',
   ziehung: 'M4 7h3c4 0 6 10 10 10h3M17 14l3 3-3 3M4 17h3c1.5 0 2.7-1.4 3.7-3.2M13.3 10.2C14.3 8.4 15.5 7 17 7h3M17 4l3 3-3 3',
   checkliste: 'M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2',
@@ -25,13 +26,17 @@ const P = {
   loeschen: 'M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13M10 11v6M14 11v6',
   oben: 'M12 19V5M5 12l7-7 7 7',
   menue: 'M4 6h16M4 12h16M4 18h16',
+  post: 'M3 6h18v12H3zM3 7l9 6.5L21 7M16 3.5v3M14.5 5h3',
+  nachricht: 'M4 10v4h3l6 4V6L7 10H4ZM16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11',
 };
 
 const LABELS = {
   start: 'Was jetzt?',
   zugang: 'Zugang sichern',
   zusage: 'Zusage',
+  nachricht: 'Nachricht der Organisator:in',
   wichtel: 'Dein Wichtel und Wünsche',
+  post: 'Wichtelpost',
   fragen: 'Rückfragen',
   album: 'Adventsalbum',
   mixtape: 'Wichtel-Mixtape',
@@ -40,6 +45,7 @@ const LABELS = {
   schrott: 'Schrottwichtel-Würfel',
   teilnehmende: 'Teilnehmende',
   gruppenlink: 'Gruppenlink',
+  analle: 'Nachricht an alle',
   ziehung: 'Ziehung',
   checkliste: 'Checkliste',
   bearbeiten: 'Runde bearbeiten',

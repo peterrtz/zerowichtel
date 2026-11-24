@@ -35,6 +35,8 @@ const S = {
     wish: ['Wunschliste prüfen', (r, d) => `Bei ${r} endet die Wunschfrist am ${d}.`, 'Wenn du noch etwas ergänzen möchtest – oder „keine Idee“ angeben –, öffne deine Seite.'],
     question: ['Neue Rückfrage', (r) => `In ${r} gibt es eine neue Rückfrage an dich.`, 'Öffne deinen Admin-Link, um sie zu lesen und zu beantworten. Dieser Hinweis kommt höchstens einmal am Tag und verrät nicht, wer gefragt hat. Abbestellen: Adresse in der Verwaltung unter „Rückfragen“ entfernen.'],
     answer: ['Antwort auf deine Rückfrage', (r) => `In ${r} hat die Organisator:in auf deine Rückfrage geantwortet.`, 'Öffne deine Seite, um die Antwort zu lesen.'],
+    announce: ['Nachricht der Organisator:in', (r) => `In ${r} hat die Organisator:in eine Nachricht an alle geschrieben.`,
+      ['Der Text steht verschlüsselt auf deiner Seite – nur ihr in der Runde könnt ihn lesen. Dort siehst du auch, ob bei dir noch etwas offen ist.']],
     digest: ['Neue Wichtelpost', (r) => `In ${r} gibt es neue anonyme Nachrichten.`,
       ['Diese Erinnerung geht an alle in der Runde – sie verrät nicht, wer wem geschrieben hat.', 'Öffne deine Seite, um nachzusehen.']],
   },
@@ -61,6 +63,8 @@ const S = {
     wish: ['Check your wish list', (r, d) => `The wish list deadline for ${r} is ${d}.`, 'If you want to add something – or say “no idea” – open your page.'],
     question: ['New question', (r) => `There is a new question for you in ${r}.`, 'Open your admin link to read and answer it. This notice comes at most once a day and does not reveal who asked. To stop it, remove the address under “Questions” in the admin view.'],
     answer: ['Reply to your question', (r) => `The organiser of ${r} has replied to your question.`, 'Open your page to read the reply.'],
+    announce: ['Message from the organiser', (r) => `The organiser of ${r} has written a message to everyone.`,
+      ['The text is encrypted on your page – only the people in the round can read it. There you can also see whether anything is still open for you.']],
     digest: ['New Secret Santa mail', (r) => `There are new anonymous messages in ${r}.`,
       ['This reminder goes to everyone in the round – it does not reveal who wrote to whom.', 'Open your page to read them.']],
   },
@@ -130,6 +134,12 @@ export function answerNotice(title, base, del, pid = null, lang = 'de') {
   const t = S[L(lang)];
   const [what, intro, action] = t.answer;
   return mail(t, lang, what, title, [t.hello, '', intro(t.round(title)), action, ...jump(t, base, pid)], base, del);
+}
+
+export function announcementNotice(title, base, del, pid = null, lang = 'de') {
+  const t = S[L(lang)];
+  const [what, intro, after] = t.announce;
+  return mail(t, lang, what, title, [t.hello, '', intro(t.round(title)), ...after, ...jump(t, base, pid)], base, del);
 }
 
 export function digest(title, base, del, pid = null, lang = 'de') {

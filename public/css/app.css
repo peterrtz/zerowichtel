@@ -988,3 +988,16 @@ canvas.snow { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-ev
 .inline-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .inline-fields input { width: 100%; }
 .nav-label::before { content: attr(data-text); }
+
+/* Nachricht der Organisator:in an alle (2.14) */
+.announce + .announce { border-top: 1px solid var(--line); margin-top: .75rem; padding-top: .75rem; }
+.announce .meta, .announce-item .meta { color: var(--ink-2); font-size: .875rem; margin: 0 0 .25rem; }
+.announce-todos { margin-top: .75rem; padding: .75rem 1rem; border-radius: var(--radius-s); background: var(--warn-soft); color: var(--ink); }
+.announce-todos h3 { margin: 0 0 .35rem; font-size: 1rem; }
+.announce-todos ul { margin: 0; padding-left: 1.2rem; }
+.announce-list { list-style: none; margin: 0; padding: 0; }
+.announce-item { padding: .75rem 0; border-top: 1px solid var(--line); }
+.announce-item:first-child { border-top: 0; }
+#announce-text { width: 100%; }
+/* Wichtelpost (2.14): offene Fragen und neue Antworten */
+.msg-flag .chip { font-size: .75rem; padding: 0 .45rem; vertical-align: middle; }

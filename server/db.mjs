@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -270,5 +270,19 @@ const STEPS = [
         meta_ct     TEXT NOT NULL
     )`,
     'CREATE INDEX photos_round ON photos(round_id, created_at)',
+  ],
+  // v14 (2.14): Nachricht der Organisator:in an alle. body_ct mit K_round (Text, „offene Aufgaben anzeigen“).
+  // ann_mail_*: Hinweis-Mail ohne Inhalt – angefordert bis Nachricht (rowid), verschickt bis, Tag der Anforderung.
+  [
+    `CREATE TABLE announcements (
+        id          TEXT PRIMARY KEY,
+        round_id    TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+        body_ct     TEXT NOT NULL,
+        created_at  INTEGER NOT NULL
+    )`,
+    'CREATE INDEX announcements_round ON announcements(round_id, created_at)',
+    'ALTER TABLE rounds ADD COLUMN ann_mail_req INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE rounds ADD COLUMN ann_mail_done INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE rounds ADD COLUMN ann_mail_day INTEGER NOT NULL DEFAULT -1',
   ],
 ];

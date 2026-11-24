@@ -13,7 +13,7 @@ const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 /** Funktionen ab 2.3 – nicht in der PHP-Fassung 1.2.1 vorhanden. */
 const test23 = (name, fn) => { if (IMPL !== 'php') tests.push([`2.3: ${name}`, fn]); };
-const SCHEMA = IMPL === 'php' ? 4 : 13;
+const SCHEMA = IMPL === 'php' ? 4 : 14;
 function eq(exp, act, msg = '') {
   if (!isDeepStrictEqual(exp, act)) throw new Error(`${msg ? `${msg}: ` : ''}erwartet ${inspect(exp)}, erhalten ${inspect(act)}`);
 }
@@ -2043,6 +2043,79 @@ CREATE TABLE messages (id INTEGER PRIMARY KEY, mailbox_id TEXT NOT NULL REFERENC
 CREATE INDEX messages_mailbox ON messages(mailbox_id);
 CREATE TABLE rate_limits (bucket TEXT PRIMARY KEY, window_start INTEGER NOT NULL, hits INTEGER NOT NULL);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`;
+
+test('2.14: Nachricht an alle – nur Organisator:in, verschlüsselt durchgereicht, Grenzen, Löschen, Hinweis-Mail höchstens einmal am Tag', async () => {
+  const e = await Env.make();
+  const r = await e.mailRound('Test');
+  const people = [];
+  for (const mail of ['a@example.org', 'b@example.org', 'c@example.org', null]) {
+    const p = await e.person(r, mail);
+    p.auth = await e.claim(p);
+    people.push(p);
+  }
+  await e.call('PUT', '/me/rsvp', { rsvp: 'raus' }, people[2].auth);
+  const base = `/rounds/${r.id}/announcements`;
+  // Nur mit Admin-Zugang; Teilnehmende und Fremde nicht
+  eq(401, await e.status('POST', base, { id: nid(), bodyCt: ct() }));
+  ok([401, 403, 404].includes(await e.status('POST', base, { id: nid(), bodyCt: ct() }, people[0].auth)), 'Person darf nicht senden');
+  eq(400, await e.status('POST', base, { id: nid(), bodyCt: 'klartext' }, r.admin), 'nur Chiffretext');
+  eq(400, await e.status('POST', base, { id: nid(), bodyCt: ct(), mail: 'ja' }, r.admin));
+  eq(400, await e.status('POST', base, { id: nid(), bodyCt: `v1.${'A'.repeat(9000)}` }, r.admin), 'Größe begrenzt');
+  const a1 = nid();
+  const body1 = ct();
+  let [s, d] = await e.call('POST', base, { id: a1, bodyCt: body1, mail: true }, r.admin);
+  eq([201, true], [s, d.mailQueued]);
+  eq(409, await e.status('POST', base, { id: a1, bodyCt: ct() }, r.admin), 'ID doppelt');
+  // Zweite Mail am selben Tag abgelehnt – ohne dass die Nachricht gespeichert wird
+  [s, d] = await e.call('POST', base, { id: nid(), bodyCt: ct(), mail: true }, r.admin);
+  eq([429, 'mailed_today'], [s, d.error]);
+  // Alle sehen die Nachricht (auch wer abgesagt hat), unverändert
+  for (const p of people) {
+    [, d] = await e.call('GET', '/me', null, p.auth);
+    eq([[a1, body1]], d.announcements.map((x) => [x.id, x.bodyCt]));
+  }
+  [, d] = await e.call('GET', `/rounds/${r.id}/admin`, null, r.admin);
+  eq([1, true], [d.announcements.length, d.announceMailToday]);
+  // Hinweis-Mail: an a und b (c hat abgesagt, d ohne Adresse), einmal, ohne Inhalt
+  const before = e.s.mails().length;
+  eq(2, (await e.s.notify(e.now)).sent);
+  const mails = e.s.mails().slice(before);
+  eq(['a@example.org', 'b@example.org'], mails.map((m) => m.to).sort());
+  eq('ZeroWichtel: Nachricht der Organisator:in – Test', mails[0].subject);
+  ok(!mails[0].text.includes(body1), 'kein Chiffretext in der Mail');
+  eq(0, (await e.s.notify(e.now)).sent, 'nur einmal');
+  // Ohne Mail beliebig (bis zur Höchstzahl); am nächsten Tag wieder mit Mail
+  for (let i = 1; i < 10; i++) eq(201, await e.status('POST', base, { id: nid(), bodyCt: ct() }, r.admin));
+  [s, d] = await e.call('POST', base, { id: nid(), bodyCt: ct() }, r.admin);
+  eq([409, 'too_many'], [s, d.error]);
+  eq(204, await e.status('DELETE', `${base}/${a1}`, null, r.admin));
+  eq(404, await e.status('DELETE', `${base}/${a1}`, null, r.admin));
+  e.now += DAY;
+  const a2 = nid();
+  eq(201, await e.status('POST', base, { id: a2, bodyCt: ct(), mail: true }, r.admin));
+  // Vor dem Versand gelöscht: keine Mail
+  eq(204, await e.status('DELETE', `${base}/${a2}`, null, r.admin));
+  eq(0, (await e.s.notify(e.now)).sent, 'gelöschte Nachricht löst keine Mail aus');
+  [, d] = await e.call('GET', '/me', null, people[0].auth);
+  eq(9, d.announcements.length);
+  ok(d.announcements.every((x, i, l) => i === 0 || l[i - 1].createdAt >= x.createdAt), 'neueste zuerst');
+  // Fremde Runde: weder senden noch löschen
+  const other = await e.mailRound();
+  eq(404, await e.status('DELETE', `${base}/${d.announcements[0].id}`, null, other.admin).then((x) => (x === 401 || x === 403 ? 404 : x)));
+  [, d] = await e.call('GET', '/me', null, people[0].auth);
+  eq(9, d.announcements.length, 'nichts gelöscht');
+  // Mit der Runde verschwinden die Nachrichten
+  eq(204, await e.status('DELETE', `/rounds/${r.id}`, null, r.admin));
+  eq(0, e.count('SELECT COUNT(*) FROM announcements'));
+});
+
+test('2.14: Hinweis-Mail nur im E-Mail-Modus', async () => {
+  const e = await Env.make();
+  const r = await e.round();
+  const [s, d] = await e.call('POST', `/rounds/${r.id}/announcements`, { id: nid(), bodyCt: ct(), mail: true }, r.admin);
+  eq([409, 'email_unavailable'], [s, d.error]);
+  eq(201, await e.status('POST', `/rounds/${r.id}/announcements`, { id: nid(), bodyCt: ct() }, r.admin));
+});
 
 test('2.13.2: veraltete Zugangsdaten melden invalid_link, fehlende Dinge weiter not_found', async () => {
   const e = await Env.make();

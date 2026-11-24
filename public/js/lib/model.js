@@ -8,6 +8,7 @@ import { normalizeAnalog, analogPrecheck, mergeExclusions } from './analog.js';
 import { validateMix, readMix } from './mixtape.js';
 import { normalizeRules, defaultRules } from './rules.js';
 import { cleanUrl, cleanTextUrls } from './cleanurl.js';
+import { openAnnouncements } from './announce.js';
 import { t, lang as uiLang } from './i18n.js';
 
 export const LIMITS = { title: 80, greeting: 2000, name: 40, budgetMax: 1000, hint: 300, hints: 5 };
@@ -149,7 +150,8 @@ export async function loadAdmin(ctx) {
   const join = r.join ? { ...r.join, token: (await C.decryptJson(ctx.kAdmin, r.join.ct, AAD.join(r.id))).t } : null;
   // Analoge Mitwichtelnde: nur Einträge zu Personen, die es (noch) gibt
   admin.analog = normalizeAnalog(admin.analog, participants.map((p) => p.id));
-  return { round: r, meta, admin, participants, join, teams, maxParticipants: data.maxParticipants, emailAvailable: !!data.emailAvailable, albumAvailable: data.albumAvailable !== false };
+  return { round: r, meta, admin, participants, join, teams, maxParticipants: data.maxParticipants, emailAvailable: !!data.emailAvailable, albumAvailable: data.albumAvailable !== false,
+    announcements: await openAnnouncements(ctx.kRound, r.id, data.announcements), announceMailToday: !!data.announceMailToday };
 }
 
 async function inviteFields(ctx, pid) {
@@ -398,6 +400,7 @@ export async function loadMe(pctx) {
     counts: data.counts,
     giftDone: await readGiftDone(pctx, r.id, data.me),
     mix: await readMixes(pctx, r.id, data),
+    announcements: await openAnnouncements(pctx.kRound, r.id, data.announcements),
     ...(await teamView(pctx, r, data)),
   };
 }
